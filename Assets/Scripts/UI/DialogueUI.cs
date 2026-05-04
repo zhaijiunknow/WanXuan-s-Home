@@ -32,8 +32,19 @@ public class DialogueUI : MonoBehaviour
     public void ShowLine(string speakerName, string content, Action onAdvance)
     {
         SetVisible(true);
-        nameText.text = speakerName;
-        dialogueText.text = content;
+
+        if (nameText != null)
+        {
+            var hasSpeaker = !string.IsNullOrWhiteSpace(speakerName);
+            nameText.gameObject.SetActive(hasSpeaker);
+            nameText.text = speakerName;
+        }
+
+        if (dialogueText != null)
+        {
+            dialogueText.text = content;
+        }
+
         advanceHandler = onAdvance != null ? new UnityAction(onAdvance) : null;
     }
 

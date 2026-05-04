@@ -25,7 +25,7 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        if (!playOnStart)
+        if (!playOnStart || storyManager == null)
         {
             return;
         }
@@ -35,10 +35,29 @@ public class GameManager : MonoBehaviour
 
     private void BindManagers()
     {
-        storyManager.Initialize(this);
-        characterManager.Initialize(this);
-        uiManager.Initialize(this);
-        audioManager.Initialize(this);
-        environmentManager.Initialize(this);
+        if (storyManager != null)
+        {
+            storyManager.Initialize(this);
+        }
+
+        if (characterManager != null)
+        {
+            characterManager.Initialize(this);
+        }
+
+        if (uiManager != null)
+        {
+            uiManager.Initialize(this);
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.Initialize(this);
+        }
+
+        if (environmentManager != null)
+        {
+            environmentManager.Initialize(this);
+        }
     }
 }
