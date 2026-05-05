@@ -7,7 +7,7 @@ using UnityEngine;
 public static class StoryScriptParser
 {
     private static readonly Regex SceneHeaderRegex = new(@"^(\d+-\d+|\d+[A-Z]-\d+)\s+(.+)$");
-    private static readonly Regex SpeakerRegex = new(@"^(我（心想）|我|皖萱(?:\s*\[[^\]]+\])?|Yui(?:（语音）)?)$");
+    private static readonly Regex InlineDialogueRegex = new(@"^\[(.+?)\](.+)$");
     private static readonly Regex ChoiceRegex = new(@"^([A-Z])\.\s*(.+)$");
     private static readonly Regex TimeOfDayRegex = new(@"(午后|白天|清晨|晴|白昼|白日|白天延续|下午|客厅 / 午后|厨房 / 白天)");
     private static readonly Regex EveningRegex = new(@"(傍晚|黄昏|夕阳)");
@@ -49,7 +49,7 @@ public static class StoryScriptParser
             });
         }
 
-        void FlushCurrentText(bool narrationFallback)
+        void FlushCurrentText()
         {
             if (currentContent.Count == 0)
             {
@@ -68,18 +68,7 @@ public static class StoryScriptParser
                 : StoryStepType.Dialogue;
             var stageNote = JoinStageNotes(pendingStageNotes);
 
-            if (stepType == StoryStepType.Narration)
-            {
-                var chunks = SplitNarrationContent(currentContent);
-                for (var i = 0; i < chunks.Count; i++)
-                {
-                    AddTextStep(stepType, chunks[i], i == 0 ? stageNote : string.Empty);
-                }
-            }
-            else
-            {
-                AddTextStep(stepType, content, stageNote);
-            }
+            AddTextStep(stepType, content, stageNote);
 
             currentSpeaker = string.Empty;
             currentExpression = string.Empty;
@@ -98,7 +87,7 @@ public static class StoryScriptParser
 
             if (line.StartsWith("附录："))
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 hasReachedAppendix = true;
                 continue;
             }
@@ -115,7 +104,7 @@ public static class StoryScriptParser
 
             if (line.StartsWith("第一幕：") || line.StartsWith("第二幕：") || line.StartsWith("第三幕：") || line.StartsWith("第四幕：") || line.StartsWith("结局分支 A") || line.StartsWith("结局分支 B") || line.StartsWith("通关后彩蛋："))
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 currentStepId = Slugify(line);
                 steps.Add(new ImportedStoryStep
                 {
@@ -131,7 +120,7 @@ public static class StoryScriptParser
             var sceneMatch = SceneHeaderRegex.Match(line);
             if (sceneMatch.Success)
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 currentStepId = sceneMatch.Groups[1].Value;
                 steps.Add(new ImportedStoryStep
                 {
@@ -146,7 +135,7 @@ public static class StoryScriptParser
 
             if (line.StartsWith("【玩家选项】"))
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 inChoiceBlock = true;
                 choiceBuffer.Clear();
                 choiceSourceStepId = string.IsNullOrWhiteSpace(currentStepId) ? "choice" : currentStepId + "-choice";
@@ -193,13 +182,13 @@ public static class StoryScriptParser
 
             if (line.StartsWith("——至此进入玩家分支选择"))
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 continue;
             }
 
             if (line.StartsWith("【HE 结尾旁白】") || line.StartsWith("【飞升结局旁白】"))
             {
-                FlushCurrentText(true);
+                FlushCurrentText();
                 pendingStageNotes.Add(line);
                 continue;
             }
@@ -210,18 +199,23 @@ public static class StoryScriptParser
                 continue;
             }
 
-            if (SpeakerRegex.IsMatch(line))
+            var inlineDialogueMatch = InlineDialogueRegex.Match(line);
+            if (inlineDialogueMatch.Success)
             {
-                FlushCurrentText(true);
-                currentSpeaker = line;
-                currentExpression = UpdateExpression(line, currentExpression);
+                FlushCurrentText();
+                currentSpeaker = inlineDialogueMatch.Groups[1].Value.Trim();
+                currentExpression = UpdateExpression(currentSpeaker, currentExpression);
+                currentContent.Add(inlineDialogueMatch.Groups[2].Value.Trim());
+                FlushCurrentText();
                 continue;
             }
 
+            FlushCurrentText();
             currentContent.Add(line);
+            FlushCurrentText();
         }
 
-        FlushCurrentText(true);
+        FlushCurrentText();
 
         if (inChoiceBlock && choiceBuffer.Count > 0)
         {
@@ -244,58 +238,6 @@ public static class StoryScriptParser
     {
         EnsureEndingStep(steps, "ending-he", "永不落幕的茶会", "皖萱留在了人间。茶会还会继续。", "5A-3");
         EnsureEndingStep(steps, "ending-be", "把甜味带回去的人", "皖萱带着这段甜味回到了天空。", "5B-3");
-    }
-
-    private static List<string> SplitNarrationContent(List<string> lines)
-    {
-        var chunks = new List<string>();
-        var currentChunk = new List<string>();
-
-        void FlushChunk()
-        {
-            if (currentChunk.Count == 0)
-            {
-                return;
-            }
-
-            var chunk = string.Join("\n", currentChunk).Trim();
-            if (!string.IsNullOrWhiteSpace(chunk))
-            {
-                chunks.Add(chunk);
-            }
-
-            currentChunk.Clear();
-        }
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                FlushChunk();
-                continue;
-            }
-
-            currentChunk.Add(line.Trim());
-            if (EndsNarrationChunk(line))
-            {
-                FlushChunk();
-            }
-        }
-
-        FlushChunk();
-        return chunks;
-    }
-
-    private static bool EndsNarrationChunk(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-        {
-            return false;
-        }
-
-        var trimmed = line.TrimEnd();
-        var last = trimmed[^1];
-        return last == '。' || last == '！' || last == '？' || last == '…';
     }
 
     private static void EnsureEndingStep(List<ImportedStoryStep> steps, string endingId, string title, string message, string previousStepId)
