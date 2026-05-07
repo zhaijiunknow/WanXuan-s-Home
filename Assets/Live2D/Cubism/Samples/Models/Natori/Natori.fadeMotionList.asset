@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 403ae2dd693bb1d4b924f6b8d206b053, type: 3}
   m_Name: Natori.fadeMotionList
   m_EditorClassIdentifier: 
-  MotionInstanceIds: 769f00003e9f00005e9f0000869f0000a09f00003a9f0000bc9f0000209f0000929f0000
+  MotionInstanceIds: 8c9d0000069d0000469d00009c9d0000de9d0000f89c0000009e0000ac9c0000c69d0000
   CubismFadeMotionObjects:
   - {fileID: 11400000, guid: b211dc549c58a9e448169cc818f5edfa, type: 2}
   - {fileID: 11400000, guid: 145e4856478ab1540affc40745dbea64, type: 2}
