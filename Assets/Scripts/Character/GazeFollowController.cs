@@ -5,6 +5,7 @@ public class GazeFollowController : MonoBehaviour
 {
     [SerializeField] private WanXuanLive2DController characterController;
     [SerializeField] private Camera targetCamera;
+    [SerializeField] private string targetCameraTag = "Live2DCamera";
     [SerializeField] private float maxX = 20f;
     [SerializeField] private float maxY = 12f;
     [SerializeField] private float smoothSpeed = 8f;
@@ -14,14 +15,24 @@ public class GazeFollowController : MonoBehaviour
 
     private void Awake()
     {
-        if (targetCamera == null)
+        targetCamera = ResolveTargetCamera();
+    }
+
+    private void OnValidate()
+    {
+        if (!Application.isPlaying && targetCamera == null)
         {
-            targetCamera = Camera.main;
+            targetCamera = ResolveTargetCamera();
         }
     }
 
     private void Update()
     {
+        if (targetCamera == null)
+        {
+            targetCamera = ResolveTargetCamera();
+        }
+
         if (characterController == null || targetCamera == null || Mouse.current == null)
         {
             return;
@@ -35,5 +46,24 @@ public class GazeFollowController : MonoBehaviour
         currentAngleY = Mathf.Lerp(currentAngleY, targetAngleY, Time.deltaTime * smoothSpeed);
 
         characterController.SetLookAngles(currentAngleX, currentAngleY);
+    }
+
+    private Camera ResolveTargetCamera()
+    {
+        if (targetCamera != null)
+        {
+            return targetCamera;
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetCameraTag))
+        {
+            var taggedCamera = GameObject.FindGameObjectWithTag(targetCameraTag);
+            if (taggedCamera != null && taggedCamera.TryGetComponent(out Camera taggedCameraComponent))
+            {
+                return taggedCameraComponent;
+            }
+        }
+
+        return Camera.main;
     }
 }
