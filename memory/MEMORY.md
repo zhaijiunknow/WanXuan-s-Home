@@ -1,0 +1,1 @@
+- [项目表现方向](project_presentation_direction.md) — 采用3D住宅场景承载叙事、2D角色立绘承载情绪演出的路线。
