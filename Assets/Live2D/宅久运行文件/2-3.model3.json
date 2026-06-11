@@ -1,0 +1,47 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "2-3.moc3",
+		"Textures": [
+			"2-3.4096/texture_00.png",
+			"2-3.4096/texture_01.png",
+			"2-3.4096/texture_02.png"
+		],
+		"Physics": "2-3.physics3.json",
+		"DisplayInfo": "2-3.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "发光循环",
+				"File": "expressions/发光循环.exp3.json"
+			},
+			{
+				"Name": "困困眼",
+				"File": "expressions/困困眼.exp3.json"
+			},
+			{
+				"Name": "死鱼眼",
+				"File": "expressions/死鱼眼.exp3.json"
+			},
+			{
+				"Name": "空虚眼",
+				"File": "expressions/空虚眼.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	],
+	"HitAreas": []
+}
