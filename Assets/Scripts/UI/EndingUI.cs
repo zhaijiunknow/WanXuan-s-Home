@@ -4,7 +4,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using TMPro;
 
-public class EndingUI : MonoBehaviour
+public class EndingUI : MonoBehaviour, IEndingView
 {
     [SerializeField] private GameObject root;
     [SerializeField] private TMP_Text titleText;

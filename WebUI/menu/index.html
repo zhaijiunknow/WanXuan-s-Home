@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>坠落凡间的头号食客 · 主菜单</title>
+
+<!-- 主题变量 + 页面基础（两个界面共用） -->
+<link rel="stylesheet" href="../theme.css">
+
+<!-- 下面两个是**两套互相独立**的界面，各自有独立的样式与脚本：
+     主菜单 → menu.css   / menu-view.js
+     设置   → settings.css / settings-view.js
+     它们唯一的关系是"设置盖在主菜单上"，而这条关系只写在 boot.js 里。 -->
+<link rel="stylesheet" href="menu.css">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+
+<!-- 画布。本页**不做** 1920x1080 等比缩放（theme.css 里 #stage 的固定尺寸
+     被 menu.css 覆盖成全视口）—— 因为右侧立绘由 OML2D 按视口像素定位，
+     菜单必须和它共用同一个坐标系，否则窗口一变两边就错位。
+     代价是尺寸随窗口宽度线性变化，所以 menu.css 里每个字号都套了 clamp() 兜底。 -->
+<div id="stage">
+
+  <!-- ============================================================
+       主菜单界面（只属于本文件）
+       ============================================================ -->
+  <div id="menu-layer">
+    <div id="menu-card">
+      <div id="menu-ornament">✦</div>
+
+      <!-- 标题与副标题由 C# 下发（WebSceneFlow 里的字段），
+           这里写的是**兜底文案**：万一 C# 还没连上，菜单也不该是空白的。 -->
+      <h1 id="menu-title">坠落凡间的头号食客</h1>
+      <p id="menu-subtitle">皖萱的家</p>
+
+      <div id="menu-buttons">
+        <button type="button" data-menu="start">开始游戏</button>
+        <button type="button" data-menu="settings">设置</button>
+        <button type="button" data-menu="quit">退出</button>
+      </div>
+
+      <div id="menu-foot">↑↓ 选择 · 回车确认</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       设置界面（独立于上面的主菜单，见 settings.css / settings-view.js）
+       默认隐藏；显示时会给 <body> 加上 settings-open，把菜单卡片收起来。
+       ============================================================ -->
+  <div id="settings-layer" class="hidden">
+    <div id="settings-card">
+      <h2>设置</h2>
+
+      <div class="setting-row">
+        <label for="set-text-speed">文字速度</label>
+        <input id="set-text-speed" type="range" min="0" max="100" step="1">
+        <output id="out-text-speed"></output>
+      </div>
+
+      <div class="setting-row">
+        <label for="set-auto-delay">自动播放间隔</label>
+        <input id="set-auto-delay" type="range" min="0" max="100" step="1">
+        <output id="out-auto-delay"></output>
+      </div>
+
+      <div class="setting-row">
+        <label for="set-volume">音量</label>
+        <input id="set-volume" type="range" min="0" max="100" step="1">
+        <output id="out-volume"></output>
+      </div>
+
+      <div class="setting-row">
+        <label for="set-fullscreen">全屏</label>
+        <input id="set-fullscreen" type="checkbox">
+        <output></output>
+      </div>
+
+      <div id="settings-buttons">
+        <button type="button" id="settings-reset">恢复默认</button>
+        <button type="button" id="settings-back">返回</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 立绘缺失/失败时的说明。live2d.js 负责填内容并显示。
+       放在这里是为了"失败了也看得懂原因"，而不是只看到右边空着。 -->
+  <div id="character-warning" class="hidden"></div>
+
+</div>
+
+<!-- 共用原语：与 C# 的协议层。它是基础设施，不是界面。
+     注意**不引 stage.js** —— 本页不做 1920x1080 等比缩放，
+     因为立绘（OML2D）按视口像素定位，两者必须共用同一个坐标系（见 menu.css 顶部说明）。 -->
+<script src="../bridge.js"></script>
+
+<!-- 立绘库。必须放在 live2d.js 之前，且必须是本地副本（理由见 vendor/README.md）。 -->
+<script src="../vendor/oh-my-live2d.min.js"></script>
+<script src="live2d.js"></script>
+
+<!-- 两套界面各自的脚本，互不引用 -->
+<script src="menu-view.js"></script>
+<script src="settings-view.js"></script>
+
+<!-- 唯一的协调者：把两套界面接起来、接上 C#。放在最后，前面都定义好才跑。 -->
+<script src="boot.js"></script>
+
+</body>
+</html>

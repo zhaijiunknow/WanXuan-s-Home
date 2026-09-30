@@ -76,6 +76,36 @@ public static class StoryScriptParser
             pendingStageNotes.Clear();
         }
 
+        // 【玩家选项】块必须以"第一个非选项行"为界结算。
+        // 单独抽出来的原因：下面有多个分支（幕标题、结局分支、场景标题等）都会 continue，
+        // 如果只在原来的 if (inChoiceBlock) 处结算，Choice 步骤会被推迟插入到这些分支产出的步骤之后，
+        // 于是 LinkSequentialSteps 会把分支入口标记错误地链接回选项本身，
+        // 导致选项回跳（选 A 后无限弹回同一选项）且分支正文变成无法到达的孤儿步骤。
+        void FlushChoiceBlock()
+        {
+            if (!inChoiceBlock)
+            {
+                return;
+            }
+
+            if (choiceBuffer.Count > 0)
+            {
+                steps.Add(new ImportedStoryStep
+                {
+                    StepId = choiceSourceStepId,
+                    StepType = StoryStepType.Choice,
+                    Choices = choiceBuffer.ToArray(),
+                    StageNote = JoinStageNotes(pendingStageNotes)
+                });
+
+                choiceBuffer.Clear();
+                pendingStageNotes.Clear();
+            }
+
+            inChoiceBlock = false;
+            choiceSourceStepId = string.Empty;
+        }
+
         for (var i = 0; i < lines.Length && !hasReachedAppendix; i++)
         {
             var rawLine = lines[i];
@@ -88,9 +118,36 @@ public static class StoryScriptParser
             if (line.StartsWith("附录："))
             {
                 FlushCurrentText();
+                FlushChoiceBlock();
                 hasReachedAppendix = true;
                 continue;
             }
+
+            if (line.StartsWith("【玩家选项】"))
+            {
+                FlushCurrentText();
+                FlushChoiceBlock();
+                inChoiceBlock = true;
+                choiceBuffer.Clear();
+                choiceSourceStepId = string.IsNullOrWhiteSpace(currentStepId) ? "choice" : currentStepId + "-choice";
+                continue;
+            }
+
+            if (inChoiceBlock && ChoiceRegex.IsMatch(line))
+            {
+                var choiceMatch = ChoiceRegex.Match(line);
+                var choiceKey = choiceMatch.Groups[1].Value;
+                choiceBuffer.Add(new ImportedChoiceOption
+                {
+                    Label = choiceMatch.Groups[2].Value,
+                    NextStepId = choiceKey == "A" ? "5A-1" : choiceKey == "B" ? "5B-1" : string.Empty
+                });
+                continue;
+            }
+
+            // 能走到这里说明当前行不是选项行 —— 选项块到此结束，必须先结算再处理这一行，
+            // 否则后面任何一个带 continue 的分支都会把 Choice 步骤推到错误的位置。
+            FlushChoiceBlock();
 
             if (line.StartsWith("====================") || line.StartsWith("结构总览") || line.StartsWith("题材：") || line.StartsWith("主要角色"))
             {
@@ -131,45 +188,6 @@ public static class StoryScriptParser
                 });
                 pendingStageNotes.Clear();
                 continue;
-            }
-
-            if (line.StartsWith("【玩家选项】"))
-            {
-                FlushCurrentText();
-                inChoiceBlock = true;
-                choiceBuffer.Clear();
-                choiceSourceStepId = string.IsNullOrWhiteSpace(currentStepId) ? "choice" : currentStepId + "-choice";
-                continue;
-            }
-
-            if (inChoiceBlock)
-            {
-                var choiceMatch = ChoiceRegex.Match(line);
-                if (choiceMatch.Success)
-                {
-                    var choiceKey = choiceMatch.Groups[1].Value;
-                    choiceBuffer.Add(new ImportedChoiceOption
-                    {
-                        Label = choiceMatch.Groups[2].Value,
-                        NextStepId = choiceKey == "A" ? "5A-1" : choiceKey == "B" ? "5B-1" : string.Empty
-                    });
-                    continue;
-                }
-
-                if (choiceBuffer.Count > 0)
-                {
-                    steps.Add(new ImportedStoryStep
-                    {
-                        StepId = choiceSourceStepId,
-                        StepType = StoryStepType.Choice,
-                        Choices = choiceBuffer.ToArray(),
-                        StageNote = JoinStageNotes(pendingStageNotes)
-                    });
-                    choiceBuffer.Clear();
-                    pendingStageNotes.Clear();
-                }
-
-                inChoiceBlock = false;
             }
 
             if (line.StartsWith("【"))
@@ -216,17 +234,7 @@ public static class StoryScriptParser
         }
 
         FlushCurrentText();
-
-        if (inChoiceBlock && choiceBuffer.Count > 0)
-        {
-            steps.Add(new ImportedStoryStep
-            {
-                StepId = choiceSourceStepId,
-                StepType = StoryStepType.Choice,
-                Choices = choiceBuffer.ToArray(),
-                StageNote = JoinStageNotes(pendingStageNotes)
-            });
-        }
+        FlushChoiceBlock();
 
         AddEndingSteps(steps);
         LinkSequentialSteps(steps);

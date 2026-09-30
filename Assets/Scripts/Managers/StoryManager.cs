@@ -156,6 +156,9 @@ public class StoryManager : MonoBehaviour
                 ShowDialogue(step.Dialogue);
                 break;
             case StoryStepType.Marker:
+                // 幕标题 / 场景标题。这是 MarkerTitle 唯一的消费点 ——
+                // 在此之前它只被导入、从未被运行时使用，属于死数据。
+                gameManager.UIManager.ShowMarker(step.MarkerTitle);
                 Advance();
                 break;
             case StoryStepType.Choice:

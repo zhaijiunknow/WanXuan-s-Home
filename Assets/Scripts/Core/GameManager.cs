@@ -30,6 +30,23 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        StartStory();
+    }
+
+    /// <summary>
+    /// 开始剧情。公开出来是为了让"非自动开始"的入口复用同一条路径
+    /// （调试快捷键、以后的读档、章节跳转）。
+    ///
+    /// 注意这里**没有**主菜单逻辑：主菜单是另一个场景（MainMenu），
+    /// 由 WebSceneFlow 负责载入本场景，本类不需要知道菜单存在过。
+    /// </summary>
+    public void StartStory()
+    {
+        if (storyManager == null)
+        {
+            return;
+        }
+
         storyManager.PlayOpening();
     }
 

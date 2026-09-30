@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>UWB 诊断页</title>
+<style>
+  /* 整页透明 —— 这是被测的核心事实本身。
+     图片/文字以外的地方必须能看到 Unity 的画面透上来。 */
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    color: #fff;
+    user-select: none;
+  }
+
+  /* 满屏洋红描边：用来确认页面是否真的铺满了整个 RawImage。
+     如果只看到部分边、或者边跑到画面外，说明分辨率/缩放不匹配。 */
+  #border {
+    position: fixed;
+    inset: 0;
+    border: 8px solid #FF00FF;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
+  /* 四角实心方块：透明成立时，它们应该是画面上唯一"不透明"的东西之一 */
+  .corner {
+    position: fixed;
+    width: 96px;
+    height: 96px;
+    pointer-events: none;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: bold;
+    color: rgba(0, 0, 0, 0.75);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.02em;
+  }
+
+  .corner em { font-style: normal; }
+  #c1 { left: 24px;  top: 24px;    background: #00E676; }
+  #c2 { right: 24px; top: 24px;    background: #00B0FF; }
+  #c3 { left: 24px;  bottom: 24px; background: #FFD600; }
+  #c4 { right: 24px; bottom: 24px; background: #FF6D00; }
+
+  /* 诊断面板：不透明，保证可读 */
+  #panel {
+    position: fixed;
+    left: 140px;
+    top: 24px;
+    min-width: 720px;
+    padding: 20px 26px;
+    border-radius: 12px;
+    background: rgba(12, 12, 16, 0.92);
+    border: 2px solid #00E676;
+    font-size: 24px;
+    line-height: 1.65;
+    white-space: pre;
+  }
+
+  #panel .k { color: #9AA0A6; }
+  #panel .ok { color: #00E676; font-weight: bold; }
+  #panel .bad { color: #FF5252; font-weight: bold; }
+  #panel .warn { color: #FFD600; font-weight: bold; }
+
+  #buttons {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 28px;
+  }
+
+  button {
+    padding: 34px 54px;
+    border: 3px solid #fff;
+    border-radius: 16px;
+    background: rgba(20, 20, 26, 0.95);
+    color: #fff;
+    font-family: inherit;
+    font-size: 34px;
+    cursor: pointer;
+  }
+  button:active { background: #00E676; color: #000; }
+
+  #result {
+    position: fixed;
+    left: 50%;
+    bottom: 140px;
+    transform: translateX(-50%);
+    max-width: 1500px;
+    padding: 18px 26px;
+    border-radius: 12px;
+    background: rgba(12, 12, 16, 0.92);
+    border: 2px solid #FFD600;
+    font-size: 24px;
+    line-height: 1.6;
+    text-align: center;
+    display: none;
+  }
+
+  #hint {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    transform: translateX(-50%);
+    padding: 14px 28px;
+    border-radius: 12px;
+    background: rgba(12, 12, 16, 0.85);
+    font-size: 26px;
+    letter-spacing: 0.04em;
+  }
+
+  /* 点击落点标记层 */
+  #marks {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .mark {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border: 3px solid #00E676;
+    border-radius: 50%;
+  }
+
+  /* 夹到边缘的那种（真实坐标超出视口）用红方块区分 */
+  .mark.out {
+    border-color: #FF1744;
+    border-radius: 4px;
+    background: rgba(255, 23, 68, 0.35);
+  }
+
+  .mark span {
+    position: absolute;
+    left: 34px;
+    top: -3px;
+    font-size: 19px;
+    color: #00E676;
+    white-space: nowrap;
+    text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  }
+
+  .mark.out span { color: #FF5252; }
+</style>
+</head>
+<body>
+
+<div id="border"></div>
+<!-- 四角方块标出自己是"已知参照物"：点它一下，落点标记应该出现在它身上。
+     如果标记跑到别处，偏差量一眼可见，不用报数字。 -->
+<div id="c1" class="corner"><em>(72, 72)</em></div>
+<div id="c2" class="corner"><em>(1848, 72)</em></div>
+<div id="c3" class="corner"><em>(72, 1008)</em></div>
+<div id="c4" class="corner"><em>(1848, 1008)</em></div>
+
+<div id="panel"></div>
+
+<div id="buttons">
+  <button id="btn-click" type="button">点击测试</button>
+  <button id="btn-bridge" type="button">测 JS→C#</button>
+</div>
+
+<!-- 点击落点标记：把页面"以为"的点击位置画出来。
+     超出视口的会夹到边缘并变成红色方块，标签里写真实数值。 -->
+<div id="marks"></div>
+
+<div id="result"></div>
+<div id="hint">除面板 / 按钮 / 四角方块以外的地方，都应该看见 Unity 的画面</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var clicks = 0;
+  var lastKey = '（无）';
+  var csharpMessages = 0;
+  var bridgeResult = '未测试';
+
+  // 页面加载标识：用来判断导航栏的 ⟳ 到底有没有让页面重新加载。
+  // 只靠时间戳不够 —— 同一秒内重载会看不出来，所以带上毫秒。
+  // sessionStorage 在 file:// 下可能不可用，所以整段用 try 包住。
+  var loadStamp = (function () {
+    var now = new Date();
+    function pad(n, width) { return ('000' + n).slice(-width); }
+    return pad(now.getHours(), 2) + ':' + pad(now.getMinutes(), 2) + ':' + pad(now.getSeconds(), 2)
+      + '.' + pad(now.getMilliseconds(), 3);
+  })();
+
+  var loadCount = (function () {
+    try {
+      var next = (parseInt(window.sessionStorage.getItem('uwbTestLoadCount'), 10) || 0) + 1;
+      window.sessionStorage.setItem('uwbTestLoadCount', String(next));
+      return next;
+    } catch (error) {
+      return null;   // file:// 下拿不到就只靠时间戳
+    }
+  })();
+
+  // ---- 鼠标事件探针 ----
+  // 目的：不用点任何按钮就能诊断。只要把鼠标在页面上划一下，
+  // 就能看出 UWB 到底转发了什么：
+  //   mousemove 一直是 0        → UWB 根本没转发鼠标（OnPointerEnter 没触发，或鼠标被禁）
+  //   mousemove 有、mousedown 没有 → 只有移动转了，按下没转
+  //   三个都有、按钮还是不亮     → 问题在前端自己的事件绑定上
+  // 注意：计数器只存变量，靠已有的 500ms 定时器刷新显示，避免频繁重绘 DOM。
+  var mouseMoves = 0;
+  var mouseDowns = 0;
+  var mouseUps = 0;
+  var mouseClicks = 0;
+  var lastMouse = '（无）';
+
+  function noteMouse(event) {
+    lastMouse = 'x=' + event.clientX + ' y=' + event.clientY
+      + '  (' + (event.clientX / window.innerWidth * 100).toFixed(1) + '%, '
+      + (event.clientY / window.innerHeight * 100).toFixed(1) + '%)';
+    return event;
+  }
+
+  // 点击落点标记：把页面"以为"的点击位置画出来，方便一眼看出坐标偏差。
+  // 真实坐标超出视口时会夹到边缘、改用红方块，标签里写真实数值。
+  var marks = [];
+
+  function drawMarks() {
+    var host = document.getElementById('marks');
+    if (!host) { return; }
+
+    host.innerHTML = '';
+
+    for (var i = 0; i < marks.length; i++) {
+      var m = marks[i];
+      var outOfRange = (m.x < 0 || m.y < 0 || m.x > window.innerWidth || m.y > window.innerHeight);
+
+      var el = document.createElement('div');
+      el.className = 'mark' + (outOfRange ? ' out' : '');
+      el.style.left = Math.max(0, Math.min(window.innerWidth, m.x)) + 'px';
+      el.style.top = Math.max(0, Math.min(window.innerHeight, m.y)) + 'px';
+
+      var label = document.createElement('span');
+      label.textContent = '#' + (i + 1) + ' (' + Math.round(m.x) + ', ' + Math.round(m.y) + ')'
+        + (outOfRange ? ' 超出视口!' : '');
+      el.appendChild(label);
+
+      host.appendChild(el);
+    }
+  }
+
+  function addMark(x, y) {
+    marks.push({ x: x, y: y });
+    if (marks.length > 6) { marks.shift(); }
+    drawMarks();
+  }
+
+  document.addEventListener('mousemove', function (e) { mouseMoves++; noteMouse(e); }, true);
+  document.addEventListener('mousedown', function (e) { mouseDowns++; noteMouse(e); addMark(e.clientX, e.clientY); }, true);
+  document.addEventListener('mouseup', function (e) { mouseUps++; noteMouse(e); }, true);
+  document.addEventListener('click', function (e) { mouseClicks++; noteMouse(e); }, true);
+
+  var panel = document.getElementById('panel');
+  var result = document.getElementById('result');
+  var hint = document.getElementById('hint');
+
+  // 底部这行大字：给出当前要做的动作
+  hint.textContent = '点一下「点击测试」，看落点标记出现在哪里'
+    + (loadCount === null ? '' : '（本页第 ' + loadCount + ' 次加载）');
+
+  function span(cls, text) {
+    return '<span class="' + cls + '">' + text + '</span>';
+  }
+
+  function render() {
+    var hasUwb = (typeof window.uwb !== 'undefined' && window.uwb !== null);
+    var hasExec = hasUwb && (typeof window.uwb.ExecuteJsMethod === 'function');
+
+    var lines = [];
+
+    // 最关键的一行：UWB 的 JS 互操作对象在不在
+    lines.push('<span class="k">window.uwb          : </span>'
+      + (hasUwb ? span('ok', 'object  ← JS 互操作可用') : span('bad', 'undefined  ← JS 互操作不可用')));
+    lines.push('<span class="k">  └ ExecuteJsMethod : </span>'
+      + (hasExec ? span('ok', '有') : span('bad', '无')));
+
+    lines.push('<span class="k">视口 innerWidth/Height: </span>' + window.innerWidth + ' x ' + window.innerHeight);
+    lines.push('<span class="k">本页加载于           : </span>'
+      + span('ok', loadStamp) + (loadCount === null ? '' : span('ok', '（第 ' + loadCount + ' 次）'))
+      + span('warn', ' ← 点导航栏 ⟳ 后这里必须变'));
+    lines.push('<span class="k">devicePixelRatio    : </span>' + window.devicePixelRatio);
+    lines.push('<span class="k">鼠标是否可见         : </span>' + (document.hasFocus() ? '页面有焦点' : span('warn', '页面无焦点')));
+    lines.push('<span class="k">收到 C# 消息         : </span>' + (csharpMessages > 0
+      ? span('ok', csharpMessages + ' 条')
+      : span('warn', '0 条')));
+    lines.push('<span class="k">点击次数             : </span>' + (clicks > 0
+      ? span('ok', String(clicks))
+      : '0  ← 点不动就说明输入没转发过来'));
+    lines.push('<span class="k">鼠标移动次数         : </span>' + (mouseMoves > 0
+      ? span('ok', String(mouseMoves))
+      : span('bad', '0  ← 把鼠标在页面上划一下，这里应该增长')));
+    lines.push('<span class="k">按下 / 抬起 / 点击   : </span>' + mouseDowns + ' / ' + mouseUps + ' / ' + mouseClicks
+      + (mouseDowns === 0 ? span('warn', '  ← 按下一直为 0 说明点击没转发') : ''));
+    lines.push('<span class="k">最后鼠标位置         : </span>' + lastMouse);
+    lines.push('<span class="k">最后按键             : </span>' + lastKey);
+    lines.push('<span class="k">JS→C# 测试           : </span>' + bridgeResult);
+
+    panel.innerHTML = lines.join('\n');
+  }
+
+  // C# 侧若要下发消息，调用 window.__vnReceive('...')，这里只做计数与展示
+  window.__vnReceive = function (input) {
+    csharpMessages++;
+    var text = (typeof input === 'string') ? input : JSON.stringify(input);
+    result.style.display = 'block';
+    result.textContent = '收到 C# 消息 #' + csharpMessages + '：' + text;
+    render();
+  };
+
+  document.getElementById('btn-click').addEventListener('click', function () {
+    clicks++;
+    render();
+  });
+
+  document.getElementById('btn-bridge').addEventListener('click', function () {
+    if (!window.uwb || typeof window.uwb.ExecuteJsMethod !== 'function') {
+      bridgeResult = span('bad', 'uwb 对象不存在');
+      render();
+      return;
+    }
+
+    try {
+      // 注意：若 C# 侧没有 RegisterJsMethod("OnWebMessage")，这次调用会抛错或返回 false。
+      // 那也算通过 —— 只要能走到这里，就证明 uwb 对象是活的、调用链路是通的。
+      var returned = window.uwb.ExecuteJsMethod('OnWebMessage',
+        JSON.stringify({ v: 1, type: 'ready', payload: { from: 'uwbtest' } }));
+
+      bridgeResult = span('ok', '已调用，返回值 ' + returned) + span('warn', '（若 C# 未注册 OnWebMessage，报错属正常）');
+    } catch (error) {
+      bridgeResult = span('ok', '调用抛错：' + error.message) + span('warn', '（能抛错也说明 uwb 对象存在）');
+    }
+
+    render();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    lastKey = event.key + ' (code ' + event.code + ')';
+    render();
+  });
+
+  window.addEventListener('resize', render);
+
+  render();
+  // 每 500ms 刷一次，这样"页面无焦点"之类会随时更新
+  window.setInterval(render, 500);
+})();
+</script>
+</body>
+</html>

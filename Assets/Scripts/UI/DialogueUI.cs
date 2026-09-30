@@ -4,7 +4,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using TMPro;
 
-public class DialogueUI : MonoBehaviour
+public class DialogueUI : MonoBehaviour, IDialogueView
 {
     [SerializeField] private GameObject root;
     [SerializeField] private TMP_Text nameText;

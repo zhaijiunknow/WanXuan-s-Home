@@ -1,0 +1,283 @@
+/* ============================================================
+   皖萱的家 · 主菜单样式（menu/menu.css）
+   ------------------------------------------------------------
+   本文件只属于主菜单界面 menu/index.html，不参与游戏界面 index.html。
+
+   ## 布局：左选项 / 右立绘
+
+   立绘是**网页里的** `oh-my-live2d`（见 live2d.js），它由库自己停靠到视口右侧。
+   所以本页**不做 1920x1080 等比缩放** —— 这里覆盖掉 theme.css 的 #stage。
+
+   为什么这条很重要：OML2D 是按**视口像素**定位的，它不知道 #stage 的存在。
+   如果菜单还按 1920x1080 缩放、立绘按视口定位，窗口一变小两边立刻错位
+   （菜单缩了、立绘没缩，她会压到选项上）。让两者共用视口坐标就没有这个问题：
+   本文件所有尺寸都用 vw/clamp 表达，和立绘同一个坐标系。
+
+   代价：尺寸随窗口宽度线性变化（16:9 全屏下等于原设计值）。所以每个字号都套了
+   clamp() 兜底，窗口很小的时候不会缩到读不清。
+
+   ## 依赖 ../theme.css（主菜单页必须链接它）
+
+   注意：文字用的是 --plate-text（主题里"深色底上的字"那一档），
+   **不是** --text-main —— 后者是给浅色面板用的深棕，压在深色遮罩上会看不见。
+
+   一个刻意的例外：左侧那条渐变的颜色是**写死**的 rgba(42,28,18,·)，
+   没有取 --ending-scrim。原因：--ending-scrim 是"整套渐变"，抽不出单通道的 alpha；
+   而主菜单页不做主题切换（永远走 room 默认值），所以写死反而更可预测。
+   42,28,18 就是 room 主题 --ending-scrim 的收尾色。
+   ============================================================ */
+
+/* ---------- 关键帧 ---------- */
+
+/*
+  column-in：左列的入场，**只动 opacity，不动 transform**。
+
+  这是个必须守住的约定：#menu-card 靠 transform: translateY(-50%) 垂直居中，
+  而动画里的 transform 会把它整个盖掉，左列会在 0.6 秒里偏下半个身位再"跳"回中间。
+  所以这里只淡入，位移交给子元素的 option-in。
+*/
+@keyframes column-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes option-in {
+  from { opacity: 0; transform: translateX(-2vw); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+   画布：覆盖掉 theme.css 的 1920x1080 + 等比缩放
+   ============================================================ */
+#stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;          /* stage.js 不会在本页运行，这里显式清掉免得残留 */
+  overflow: hidden;
+}
+
+/* ============================================================
+   主菜单
+   ============================================================ */
+
+/*
+  整层：横向渐变，左边实、右边透。
+
+  立绘在**网页里**（和这一层同级、由 OML2D 插进来的 canvas），
+  所以这条渐变也同时压在她身上 —— 这是有意的：右侧 alpha 归零让她的
+  主体完全不受影响，只在最左边（选项后面）压深。76% 之后 alpha 为 0。
+*/
+#menu-layer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(42, 28, 18, 0.88) 0%,
+    rgba(42, 28, 18, 0.74) 30%,
+    rgba(42, 28, 18, 0.34) 52%,
+    rgba(42, 28, 18, 0.06) 68%,
+    rgba(42, 28, 18, 0) 76%
+  );
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+#menu-layer.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/*
+  左侧竖列。**不是卡片** —— 没有面板底、没有边框。
+  立绘时代的菜单不该再放一块牌子把画面切成两半；
+  这里只靠上面那条渐变把文字区和立绘区分开。
+*/
+#menu-card {
+  position: absolute;
+  left: 6.9vw;                 /* 132 / 1920 */
+  top: 50%;
+  transform: translateY(-50%);
+  /* 列宽和标题字号是**一组**参数，必须一起算：
+     中文字宽 ≈ 字号 × 1.1（含 0.1em 字距），9 个字的标题要 9.9 × 字号。
+     730px 列宽配 3.5vw(=67px@1920) 字号 → 665px，留了约 9% 余量。
+     改列宽或字号时请重算这个乘法，否则标题会在"头号 / 食客"这种地方断行。 */
+  width: 38vw;                 /* 730 / 1920 */
+  max-width: 780px;
+  text-align: left;
+  animation: column-in 0.5s ease backwards;
+}
+
+/* 金色呼应角色头顶的光环 */
+#menu-ornament {
+  font-size: clamp(20px, 1.8vw, 36px);
+  line-height: 1;
+  color: var(--accent-gold);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  margin-bottom: 1.2vw;
+}
+
+#menu-title {
+  margin: 0 0 0.8vw;
+  /* 单行放得下 9 个字：9.9 × 3.5vw(67px@1920) ≈ 665px < 730px 列宽。
+     再大就会断成"…头号 / 食客"。列宽见上面 #menu-card 的注释。 */
+  font-size: clamp(28px, 3.5vw, 70px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: 0.1em;
+  color: var(--plate-text);
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
+}
+
+/* 标题下的一条短分隔线，宽度只占标题的一小段，别拉满整列 */
+#menu-title::after {
+  content: "";
+  display: block;
+  width: 8.8vw;
+  height: 3px;
+  margin: 1.6vw 0 0;
+  background: linear-gradient(90deg, var(--accent-gold), rgba(232, 197, 106, 0));
+}
+
+#menu-subtitle {
+  margin: 1.4vw 0 0;
+  font-size: clamp(15px, 1.3vw, 26px);
+  line-height: 1.7;
+  letter-spacing: 0.18em;
+  color: rgba(255, 247, 234, 0.66);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  white-space: pre-wrap;
+}
+
+/*
+  选项列表。左对齐竖排 —— 这是"米塔那种"排版的核心：
+  选项贴着标题的左边线往下走，右半边整个留给立绘。
+*/
+#menu-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3vw;
+  margin-top: 3.2vw;
+}
+
+#menu-buttons button {
+  position: relative;
+  width: 100%;
+  padding: 1.05vw 0 1.05vw 1.8vw;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 247, 234, 0.82);
+  font-family: inherit;
+  font-size: clamp(19px, 1.8vw, 36px);
+  letter-spacing: 0.16em;
+  text-align: left;
+  cursor: pointer;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  transition: color 0.2s ease, transform 0.2s ease;
+
+  animation: option-in 0.45s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+
+/* 逐条落下：序号越小越早出现 */
+#menu-buttons button:nth-child(1) { animation-delay: 0.12s; }
+#menu-buttons button:nth-child(2) { animation-delay: 0.20s; }
+#menu-buttons button:nth-child(3) { animation-delay: 0.28s; }
+#menu-buttons button:nth-child(4) { animation-delay: 0.36s; }
+#menu-buttons button:nth-child(5) { animation-delay: 0.44s; }
+#menu-buttons button:nth-child(6) { animation-delay: 0.52s; }
+
+/* 左侧短横线：悬停时从 18px 长到 56px 并变金色。
+   用它代替整块背景色 —— 大块高亮会把立绘旁边的画面弄脏。 */
+#menu-buttons button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.95vw;
+  height: 2px;
+  margin-top: -1px;
+  background: rgba(255, 247, 234, 0.36);
+  transition: width 0.22s ease, background 0.22s ease;
+}
+
+#menu-buttons button:hover,
+#menu-buttons button:focus-visible {
+  color: var(--plate-text);
+  outline: none;
+  transform: translateX(0.4vw);
+}
+
+#menu-buttons button:hover::before,
+#menu-buttons button:focus-visible::before {
+  width: 2.9vw;
+  background: var(--accent-gold);
+}
+
+/* 底部小字：操作提示。也是左列的一部分 */
+#menu-foot {
+  margin-top: 3.9vw;
+  font-size: clamp(12px, 1vw, 20px);
+  letter-spacing: 0.1em;
+  color: rgba(255, 247, 234, 0.4);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/*
+  立绘 stage：**必须让指针事件穿透**。
+
+  它不是"尺寸"问题而是"事件层"问题：stage 的 z-index 是 9997，
+  铺满视口之后整页都盖在菜单上面，于是所有点击都被它吃掉 —— 按钮点不动。
+  但对一个纯显示的元素来说，它本来就不该接收指针事件。
+
+  加 pointer-events: none 之后：
+    ✅ 点击穿到下面的菜单按钮
+    ✅ 她照常渲染、照常动
+    ✅ 鼠标跟随（视线）也不受影响 —— 库是在文档级监听鼠标位置的，不依赖这个元素命中
+    ❌ 失去"点她触发随机动作"（库的 hit 事件）。菜单里这个代价可以接受；
+       真要恢复，得给她单独做一个尺寸受限的命中区，不能把整个 stage 打开。
+
+  `!important` 是必须的：库通过 element.style 设内联样式。
+  canvas 也一起关掉，因为它的 CSS 尺寸是 stage 的 100%（等于整个视口）。
+*/
+#oml2d-stage,
+#oml2d-canvas {
+  pointer-events: none !important;
+}
+
+/*
+  干掉气泡。
+
+  为什么用 CSS 而不是配置：`sayHello: false` 并没有拦住它（气泡照旧出现），
+  而把 welcomeTips 的 8 条消息置空之后，它渲染成了一个**空气泡**（右上角那个蓝框）。
+  与其继续逆推库里的触发条件，不如直接按元素 id 隐藏。
+
+  配置那边保留置空是对的（双重保险），但真正生效的是这一条。
+*/
+#oml2d-tips {
+  display: none !important;
+}
+
+/*
+  立绘缺失时的提示条。live2d.js 在没有 vendor 文件 / 初始化失败时会显示它。
+  放在右下角，不挡选项也不挡标题 —— 目的只是"别让人以为是页面坏了"。
+*/
+#character-warning {
+  position: absolute;
+  right: 2vw;
+  bottom: 2vw;
+  max-width: 40vw;
+  padding: 1vw 1.4vw;
+  border-radius: 8px;
+  background: rgba(42, 28, 18, 0.82);
+  border: 1px solid rgba(232, 197, 106, 0.32);
+  color: rgba(255, 247, 234, 0.86);
+  font-size: clamp(12px, 0.95vw, 18px);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+#character-warning.hidden { display: none; }

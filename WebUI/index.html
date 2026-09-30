@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>皖萱的家 · 游戏界面</title>
+
+<!-- 主题变量 + 页面基础 + #stage 布局原语（与主菜单界面共用） -->
+<link rel="stylesheet" href="theme.css">
+
+<!-- 游戏界面自己的样式。里面**没有**主菜单和设置的规则 ——
+     那两块是另一个场景（MainMenu）的界面，在 menu/ 下。 -->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 1920x1080 设计基准，由 stage.js 等比缩放铺满窗口 -->
+<div id="stage">
+
+  <!-- 1. 背景层。默认隐藏：MainRoom 里真实背景是 3D 房间，这一层只是浏览器预览用的
+       CSS 假背景（用来判断文字对比度），由控制条的「背景」按钮切换。 -->
+  <div id="backdrop" class="backdrop-day hidden"></div>
+
+  <!-- 2. 角色位。Live2D 由 Unity 渲染，这里只是浏览器预览时的站位参考。
+       默认隐藏（连 HTML 上就带 hidden，避免 JS 执行前闪一下），由控制条的「参考层」按钮切换。 -->
+  <div id="character-slot" class="hidden">
+    <span>Live2D 角色区<br><small>（由 Unity 渲染 · 此框仅预览站位）</small></span>
+    <div id="face-safe-line"><em>面部安全区 · 对话框上沿不应越过此线</em></div>
+  </div>
+
+  <!-- 3. 幕标题 / 场景标题。数据来自 StoryStep.MarkerTitle，Unity 那边目前是死数据，这里先把它用起来。 -->
+  <div id="chapter-banner"></div>
+
+  <!-- 4. 对话层 -->
+  <div id="dialogue-layer">
+    <div id="name-plate" class="hidden"></div>
+    <div id="dialogue-box">
+      <p id="dialogue-text"></p>
+      <span id="advance-indicator" class="hidden">▼</span>
+    </div>
+  </div>
+
+  <!-- 5. 选项层 -->
+  <div id="choice-layer"></div>
+
+  <!-- 6. 结局层 -->
+  <div id="ending-layer" class="hidden">
+    <div id="ending-card">
+      <div id="ending-ornament">✦</div>
+      <h1 id="ending-title"></h1>
+      <p id="ending-message"></p>
+      <button id="ending-restart" type="button">重新开始</button>
+    </div>
+  </div>
+
+  <!-- 6b. 主菜单 / 设置**不在这里**。
+       它们属于另一个场景（MainMenu），是独立的一套界面：
+         WebUI/menu/index.html   页面
+         WebUI/menu/menu.css     主菜单样式
+         WebUI/menu/settings.css 设置样式
+         WebUI/menu/*.js         各自的脚本
+       放在同一个页面里曾经是个错误 —— 游戏进行中根本不会出现主菜单，
+       两者永远不同屏，混在一起只会让"改 A 弄坏 B"变得容易。
+       本文件现在只装游戏进行中的界面。 -->
+
+  <!-- 7. 操作提示 -->
+  <div id="hint">点击 / 空格 继续</div>
+
+  <!-- 8. 控制条（VN 常规功能 + 前端评审用的开关）
+       背景 / 参考层 是两个独立开关：
+         背景   —— CSS 假房间。关掉后整页透明，等于接进 Unity 后的真实状态。
+         参考层 —— 角色站位框 + 面部安全线。想拍干净的设计稿就关掉它。
+
+       「主菜单」不是菜单界面，只是一个**回到主菜单场景**的入口 ——
+       按钮在这里，菜单本身在 MainMenu 场景里。 -->
+  <div id="controls">
+    <button type="button" data-action="auto">自动</button>
+    <button type="button" data-action="fast">快进</button>
+    <button type="button" data-action="hide">隐藏 UI</button>
+    <button type="button" data-action="theme">主题</button>
+    <button type="button" data-action="backdrop">背景</button>
+    <button type="button" data-action="guides">参考层</button>
+    <button type="button" data-action="hud">HUD</button>
+    <button type="button" data-action="menu">主菜单</button>
+  </div>
+
+  <!-- 9. 开发 HUD：显示当前步骤 id、进度、桥接状态 -->
+  <div id="dev-hud" class="hidden"></div>
+
+  <!-- 10. 隐藏 UI 模式下用来唤回界面的浮标 -->
+  <div id="restore-marker" class="hidden">点击任意处恢复界面</div>
+
+</div>
+
+<!-- 共用原语：与 C# 的协议层 + 画布缩放。它们是基础设施，不是界面。 -->
+<script src="bridge.js"></script>
+<script src="stage.js"></script>
+
+<!-- 样本剧本：真实剧本《第一幕》的精简摘录，用于排版评审。
+     完整数据用 Unity 菜单 WanXuan/导出 Web 剧本（story.js） 生成 WebUI/story.js，
+     app.js 优先加载它，找不到才退回样本。 -->
+<script src="story.sample.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

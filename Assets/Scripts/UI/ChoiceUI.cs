@@ -3,7 +3,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 
-public class ChoiceUI : MonoBehaviour
+public class ChoiceUI : MonoBehaviour, IChoiceView
 {
     [SerializeField] private GameObject root;
     [SerializeField] private TMP_Text promptText;

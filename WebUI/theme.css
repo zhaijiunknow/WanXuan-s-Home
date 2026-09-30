@@ -1,0 +1,183 @@
+/* ============================================================
+   皖萱的家 · 主题变量 + 页面基础（theme.css）
+   ------------------------------------------------------------
+   本文件里只有「样式变量」和「页面基础规则」，不含任何具体界面的规则：
+     1) 三套主题变量：room（默认）/ cocoa / cream，按 T 键循环
+     2) 基础：* 、html, body、body、@font-face
+
+   两个界面都链接它，配色和字体因此同源：
+     游戏界面   index.html
+     主菜单界面 menu/index.html
+   具体界面自己的规则分别在 style.css（游戏）和 menu/*.css（主菜单 / 设置）里。
+
+   变量分成两组，改配色时只动「配色组」，不要去动「结构组」：
+     配色组  --panel-bg / --text-main / --accent ...
+     结构组  --panel-backdrop / --panel-radius / --panel-border-bottom-w / --panel-shadow ...
+   ============================================================ */
+
+/* ============================================================
+   主题一：room —— 木牌 / 贴纸
+   ------------------------------------------------------------
+   取色全部来自 MainRoom 实拍：
+     墙面奶油      #EFE6D6
+     墙裙家具木色  #8A6247 / #6E4C36
+     地毯窗框青绿  #3E8C84
+     地板天花板芥黄 #DCC673
+     角色光环金    #F2D06B
+     角色本体      #3A3844 炭黑 / #F5EFE4 米白 / #A9B8E8 淡雪青
+
+   两条刻意的决定：
+   1) 不用毛玻璃。这套低多边形场景里没有任何半透明模糊材质，全是平涂 +
+      清晰描边 + 硬阴影。磨砂面板会立刻显得"这是另一个软件的画面"。
+   2) 面板做成不透明。对话框压在芥黄地板 + 青绿地毯描边上，底部区域很花；
+      不透明才能保证文字对比度是确定的，而不是碰运气。
+      想让它透一点：把 --panel-bg 的色值改成 rgba(...,0.94) 即可，
+      边框和阴影仍然负责把面板和墙分开。
+   ============================================================ */
+:root,
+:root[data-theme="room"] {
+  /* 配色组 */
+  --panel-bg: linear-gradient(180deg, #FDF8EF 0%, #F7EDDD 100%);
+  --panel-border: #8A6247;
+  --panel-border-bottom: #6E4C36;
+  --text-main: #4A382C;
+  --text-soft: rgba(74, 56, 44, 0.62);
+  --plate-bg: linear-gradient(180deg, #8A6247 0%, #6B4A34 100%);
+  --plate-text: #FFF7EA;
+  --accent: #3E8C84;
+  --accent-soft: rgba(62, 140, 132, 0.16);
+  --accent-gold: #E8C56A;
+  --choice-bg: linear-gradient(180deg, #FDF8EF 0%, #F6EBD8 100%);
+  --choice-hover: linear-gradient(180deg, #FFFBF3 0%, #EFE0C4 100%);
+  --choice-text: #4A382C;
+  --scrim: linear-gradient(180deg, rgba(58, 40, 28, 0.10) 0%, rgba(58, 40, 28, 0.44) 100%);
+  /* 结局单独一套遮罩：选项层只要压暗一点，结局要把整个画面收下来，
+     所以这里比 --scrim 深得多，但仍然保持暖调而不是纯黑。 */
+  --ending-scrim: linear-gradient(180deg, rgba(58, 40, 28, 0.46) 0%, rgba(42, 28, 18, 0.78) 100%);
+  --ending-accent: #C9606F;          /* 草莓粉只在这里出现 */
+
+  /* 结构组 */
+  --panel-backdrop: none;
+  --panel-radius: 14px;
+  --panel-border-w: 2px;
+  --panel-border-bottom-w: 5px;      /* 木板厚度：做出"实体牌子"的感觉 */
+  --panel-shadow: 0 16px 30px rgba(88, 60, 40, 0.28);
+  --panel-inset: inset 0 2px 0 rgba(255, 253, 246, 0.9);
+  --choice-radius: 12px;
+  --choice-border-w: 2px;
+  --choice-shadow: 0 8px 18px rgba(88, 60, 40, 0.22);
+  --choice-shadow-hover: 0 12px 24px rgba(88, 60, 40, 0.30);
+}
+
+/* ============================================================
+   主题二：cocoa —— 暖棕深色（通用安全牌）
+   ============================================================ */
+:root[data-theme="cocoa"] {
+  --panel-bg: linear-gradient(160deg, rgba(62, 44, 42, 0.90) 0%, rgba(46, 32, 31, 0.94) 100%);
+  --panel-border: rgba(255, 226, 200, 0.22);
+  --panel-border-bottom: rgba(255, 226, 200, 0.22);
+  --text-main: #FFF4E9;
+  --text-soft: rgba(255, 231, 214, 0.72);
+  --plate-bg: linear-gradient(135deg, #E8879B 0%, #C9606F 100%);
+  --plate-text: #FFF7F2;
+  --accent: #F0A9B8;
+  --accent-soft: rgba(232, 135, 155, 0.18);
+  --accent-gold: #F0C77E;
+  --choice-bg: linear-gradient(120deg, rgba(70, 50, 47, 0.88) 0%, rgba(52, 36, 35, 0.92) 100%);
+  --choice-hover: linear-gradient(120deg, rgba(120, 74, 80, 0.94) 0%, rgba(88, 52, 57, 0.96) 100%);
+  --choice-text: #FFF1E6;
+  --scrim: radial-gradient(ellipse at center, rgba(28, 18, 17, 0.72) 0%, rgba(18, 11, 10, 0.94) 100%);
+  --ending-scrim: radial-gradient(ellipse at center, rgba(28, 18, 17, 0.72) 0%, rgba(18, 11, 10, 0.94) 100%);
+  --ending-accent: #F0A9B8;
+
+  --panel-backdrop: blur(14px) saturate(1.25);
+  --panel-radius: 26px;
+  --panel-border-w: 1px;
+  --panel-border-bottom-w: 1px;
+  --panel-shadow: 0 26px 60px rgba(28, 16, 14, 0.46);
+  --panel-inset: inset 0 1px 0 rgba(255, 200, 160, 0.14);
+  --choice-radius: 18px;
+  --choice-border-w: 1px;
+  --choice-shadow: 0 10px 26px rgba(28, 16, 14, 0.28);
+  --choice-shadow-hover: 0 26px 60px rgba(28, 16, 14, 0.46);
+}
+
+/* ============================================================
+   主题三：cream —— 奶油浅色
+   ============================================================ */
+:root[data-theme="cream"] {
+  --panel-bg: linear-gradient(160deg, rgba(255, 250, 244, 0.94) 0%, rgba(252, 240, 228, 0.96) 100%);
+  --panel-border: rgba(201, 96, 111, 0.28);
+  --panel-border-bottom: rgba(201, 96, 111, 0.28);
+  --text-main: #4A3733;
+  --text-soft: rgba(90, 66, 60, 0.72);
+  --plate-bg: linear-gradient(135deg, #E8879B 0%, #C9606F 100%);
+  --plate-text: #FFF9F5;
+  --accent: #C9606F;
+  --accent-soft: rgba(201, 96, 111, 0.14);
+  --accent-gold: #D9A93F;
+  --choice-bg: linear-gradient(120deg, rgba(255, 250, 245, 0.94) 0%, rgba(250, 235, 222, 0.96) 100%);
+  --choice-hover: linear-gradient(120deg, rgba(255, 225, 228, 0.98) 0%, rgba(252, 210, 214, 0.98) 100%);
+  --choice-text: #4A3733;
+  --scrim: radial-gradient(ellipse at center, rgba(90, 62, 58, 0.55) 0%, rgba(60, 38, 35, 0.86) 100%);
+  --ending-scrim: radial-gradient(ellipse at center, rgba(90, 62, 58, 0.55) 0%, rgba(60, 38, 35, 0.86) 100%);
+  --ending-accent: #C9606F;
+
+  --panel-backdrop: blur(14px) saturate(1.25);
+  --panel-radius: 26px;
+  --panel-border-w: 1px;
+  --panel-border-bottom-w: 1px;
+  --panel-shadow: 0 26px 60px rgba(120, 82, 70, 0.28);
+  --panel-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --choice-radius: 18px;
+  --choice-border-w: 1px;
+  --choice-shadow: 0 10px 26px rgba(120, 82, 70, 0.18);
+  --choice-shadow-hover: 0 26px 60px rgba(120, 82, 70, 0.28);
+}
+
+/* ---------- 基础 ---------- */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* WebView 接入时必须透明，否则会挡住 Unity 的 Live2D 和房间。
+     浏览器预览时会看到这块底色，属预期。 */
+  background: transparent;
+}
+
+body {
+  /* 中文圆体优先用工程里的 ChillRoundF；file:// 下浏览器可能因 CORS 拒绝加载，
+     届时自动退到系统字体，观感接近。
+     正式接入请把字体放进 StreamingAssets，与 HTML 同级。 */
+  font-family: "ChillRoundF", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+               "Source Han Sans SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", sans-serif;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: pointer;
+}
+
+@font-face {
+  font-family: "ChillRoundF";
+  src: url("../Assets/TextMesh Pro/Resources/Fonts & Materials/ChillRoundF.ttf") format("truetype");
+  font-display: swap;
+}
+
+/* ---------- 舞台：1920x1080 等比缩放 ---------- */
+/* 两个界面都用它：页面上放一个 <div id="stage"> 包住全部内容，
+   所有尺寸按 1920x1080 写死，由 stage.js 的 VNStage.fit() 等比缩放。
+   放在 theme.css 而不是各自的样式里，是因为它必须逐字一致 ——
+   一旦两边算得不一样，同一个面板在两页上会有不同大小。 */
+#stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+  overflow: hidden;
+}
