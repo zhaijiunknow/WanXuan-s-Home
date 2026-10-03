@@ -47,7 +47,7 @@ public static class StoryScriptImporter
         var steps = BuildSteps(importResult);
 
         SetField(asset, "storyId", "wanxuan_long_story");
-        SetField(asset, "storyTitle", "坠落凡间的头号食客");
+        SetField(asset, "storyTitle", "甜味的坠落");
         SetField(asset, "steps", steps);
 
         EditorUtility.SetDirty(asset);

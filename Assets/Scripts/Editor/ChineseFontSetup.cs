@@ -32,7 +32,9 @@ public static class ChineseFontSetup
     private const int AtlasWidth = 2048;
     private const int AtlasHeight = 2048;
 
-    private const string ProbeText = "坠落凡间的头号食客——皖萱：“这样的话，你还希望我留下吗？”";
+    // 字体覆盖自检用的样本句。**要跟着游戏里最"刁钻"的字走**：
+    // 标题 + 角色名 + 两个结局名里的关键字都在这里，字体缺字时自检才抓得到。
+    private const string ProbeText = "甜味的坠落——皖萱：“这样的话，你还希望我留下吗？”永不落幕的茶会，把甜味带回去的人";
 
     [MenuItem("WanXuan/中文字体/1. 生成中文字体资产（并接入 fallback）", false, 100)]
     public static void CreateChineseFontAsset()

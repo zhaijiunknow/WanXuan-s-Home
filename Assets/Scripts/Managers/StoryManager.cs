@@ -13,6 +13,18 @@ public class StoryManager : MonoBehaviour
 
     public StoryAsset OpeningStory => openingStory;
 
+    /// <summary>
+    /// 当前正在播的剧本。暂停菜单的「记忆序列」要用它列出所有幕。
+    /// 没在播任何剧本时是 null（比如刚进主菜单场景）。
+    /// </summary>
+    public StoryAsset CurrentStory => currentStory;
+
+    /// <summary>
+    /// 当前步骤在 CurrentStory.Steps 里的下标。**-1 表示还没开始播**。
+    /// 暂停菜单用它判断哪一幕"已归档"、哪一幕"正在读取"。
+    /// </summary>
+    public int CurrentStepIndex => currentStepIndex;
+
     public void Initialize(GameManager owner)
     {
         gameManager = owner;
@@ -24,6 +36,17 @@ public class StoryManager : MonoBehaviour
     }
 
     public void PlayStory(StoryAsset story)
+    {
+        PlayStory(story, null);
+    }
+
+    /// <summary>
+    /// 播放剧本。startStepId 非空时从该步骤开始（读档用），找不到就退回开头。
+    ///
+    /// 为什么做成参数而不是"先 PlayStory 再 JumpToStep"：那样会先把第 0 步
+    /// 执行一遍（屏幕闪一下第一句台词）再跳到存档点，读档时观感很差。
+    /// </summary>
+    public void PlayStory(StoryAsset story, string startStepId)
     {
         gameManager.UIManager.HideEnding();
 
@@ -38,7 +61,20 @@ public class StoryManager : MonoBehaviour
 
         currentStory = story;
         BuildLookup(story);
+
+        if (!string.IsNullOrWhiteSpace(startStepId) && stepLookup.ContainsKey(startStepId))
+        {
+            JumpToStep(startStepId);
+            return;
+        }
+
         JumpToIndex(0);
+    }
+
+    /// <summary>读档：从存档点继续。</summary>
+    public void PlayFrom(string stepId)
+    {
+        PlayStory(openingStory, stepId);
     }
 
     public void RestartCurrentStory()
@@ -138,7 +174,36 @@ public class StoryManager : MonoBehaviour
         }
 
         currentStepIndex = index;
-        ExecuteStep(currentStory.Steps[index]);
+
+        var step = currentStory.Steps[index];
+        RememberProgress(step);
+        ExecuteStep(step);
+    }
+
+    /// <summary>
+    /// 记录进度。
+    ///
+    /// 挂在 JumpToIndex 上是因为它是**所有**步骤变化的唯一漏斗
+    ///（Advance / SelectChoice / JumpToStep / 开场都经过它），
+    /// 挂在这里就不可能有哪条路径漏存。
+    ///
+    /// 只记玩家能"看见并停留"的步骤：
+    ///   Marker 会立刻自动 Advance（存了马上被下一步覆盖，没有意义）
+    ///   End 存了会让「继续游戏」直接重播结局 —— 那不是玩家想要的继续点
+    /// </summary>
+    private void RememberProgress(StoryStep step)
+    {
+        if (step == null)
+        {
+            return;
+        }
+
+        if (step.StepType == StoryStepType.Dialogue ||
+            step.StepType == StoryStepType.Narration ||
+            step.StepType == StoryStepType.Choice)
+        {
+            StorySaveStore.Save(step.StepId);
+        }
     }
 
     private void ExecuteStep(StoryStep step)

@@ -2,17 +2,22 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>坠落凡间的头号食客 · 主菜单</title>
+<title>甜味的坠落 · 主菜单</title>
 
 <!-- 主题变量 + 页面基础（两个界面共用） -->
 <link rel="stylesheet" href="../theme.css">
 
-<!-- 下面两个是**两套互相独立**的界面，各自有独立的样式与脚本：
-     主菜单 → menu.css   / menu-view.js
-     设置   → settings.css / settings-view.js
-     它们唯一的关系是"设置盖在主菜单上"，而这条关系只写在 boot.js 里。 -->
+<!-- 下面这个是**主菜单自己**的样式。
+     注意设置页**不在这里**了 —— 它已经变成 Animus 归档系统（见 animus/），
+     那是主菜单页和游戏页共用的一层，不属于任何一边。 -->
 <link rel="stylesheet" href="menu.css">
-<link rel="stylesheet" href="settings.css">
+
+<!-- 动态背景。它是**这一页自己的**一层，所以单独一个文件，
+     不塞进 menu.css 里 —— 那会让"背景变了"看起来像是"菜单变了"。 -->
+<link rel="stylesheet" href="background.css">
+
+<!-- Animus 归档系统。它是第三个界面系统，主菜单页和游戏页都会加载它。 -->
+<link rel="stylesheet" href="../animus/animus.css">
 </head>
 <body>
 
@@ -23,6 +28,24 @@
 <div id="stage">
 
   <!-- ============================================================
+       动态背景（只属于本文件，见 background.css / background.js）
+       ------------------------------------------------------------
+       底色 / 网格 / 呼吸光 / 索引绳 / 线索链 / 掠光 / 暗角都在这一层里。
+       它铺满视口、z-index 0、pointer-events: none ——
+       主菜单层在它上面（z-index 1），设置层再上面（z-index 2）。
+
+       顺序有意义：网格和呼吸光在 canvas **下面**（它们是底），
+       掠光和暗角在 canvas **上面**（它们要压过结构，才有"隔着空气看"的感觉）。
+       ============================================================ -->
+  <div id="menu-bg" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-bloom"></div>
+    <canvas id="menu-bg-canvas"></canvas>
+    <div class="bg-sweep"></div>
+    <div class="bg-vignette"></div>
+  </div>
+
+  <!-- ============================================================
        主菜单界面（只属于本文件）
        ============================================================ -->
   <div id="menu-layer">
@@ -31,10 +54,14 @@
 
       <!-- 标题与副标题由 C# 下发（WebSceneFlow 里的字段），
            这里写的是**兜底文案**：万一 C# 还没连上，菜单也不该是空白的。 -->
-      <h1 id="menu-title">坠落凡间的头号食客</h1>
+      <h1 id="menu-title">甜味的坠落</h1>
       <p id="menu-subtitle">皖萱的家</p>
 
       <div id="menu-buttons">
+        <!-- 「继续游戏」排在最前：VN 的惯例是玩家回来大概率想接着玩。
+             没有存档时由 hasSave 置灰（C# 下发），不是隐藏 ——
+             灰着能让人知道"有存档这回事"。 -->
+        <button type="button" data-menu="continue">继续游戏</button>
         <button type="button" data-menu="start">开始游戏</button>
         <button type="button" data-menu="settings">设置</button>
         <button type="button" data-menu="quit">退出</button>
@@ -44,50 +71,22 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       设置界面（独立于上面的主菜单，见 settings.css / settings-view.js）
-       默认隐藏；显示时会给 <body> 加上 settings-open，把菜单卡片收起来。
-       ============================================================ -->
-  <div id="settings-layer" class="hidden">
-    <div id="settings-card">
-      <h2>设置</h2>
-
-      <div class="setting-row">
-        <label for="set-text-speed">文字速度</label>
-        <input id="set-text-speed" type="range" min="0" max="100" step="1">
-        <output id="out-text-speed"></output>
-      </div>
-
-      <div class="setting-row">
-        <label for="set-auto-delay">自动播放间隔</label>
-        <input id="set-auto-delay" type="range" min="0" max="100" step="1">
-        <output id="out-auto-delay"></output>
-      </div>
-
-      <div class="setting-row">
-        <label for="set-volume">音量</label>
-        <input id="set-volume" type="range" min="0" max="100" step="1">
-        <output id="out-volume"></output>
-      </div>
-
-      <div class="setting-row">
-        <label for="set-fullscreen">全屏</label>
-        <input id="set-fullscreen" type="checkbox">
-        <output></output>
-      </div>
-
-      <div id="settings-buttons">
-        <button type="button" id="settings-reset">恢复默认</button>
-        <button type="button" id="settings-back">返回</button>
-      </div>
-    </div>
-  </div>
+  <!-- 设置界面**不在这里**。
+       它已经升级成 Animus 归档系统（WebUI/animus/），那一层由主菜单页和
+       游戏页共用，所以 DOM 由 animus.js 自己生成、直接挂在 document.body 上。
+       放在这个文件里的话，游戏页那份就得复制一遍 —— 设置项一旦改动必然漂移。 -->
 
   <!-- 立绘缺失/失败时的说明。live2d.js 负责填内容并显示。
        放在这里是为了"失败了也看得懂原因"，而不是只看到右边空着。 -->
   <div id="character-warning" class="hidden"></div>
 
 </div>
+
+<!-- 交接用的那层光（主菜单 → 游戏的无缝切换）。
+     这一页初始是**灭的**（没有 covered），点「开始游戏」时由 boot.js 点亮，
+     演完才发 menu.start —— 这样 C# 换场景那一段不会露出硬切。
+     样式在 theme.css，和游戏页共用一份（两边的色值必须一样）。 -->
+<div id="handoff-veil" aria-hidden="true"></div>
 
 <!-- 共用原语：与 C# 的协议层。它是基础设施，不是界面。
      注意**不引 stage.js** —— 本页不做 1920x1080 等比缩放，
@@ -98,11 +97,26 @@
 <script src="../vendor/oh-my-live2d.min.js"></script>
 <script src="live2d.js"></script>
 
-<!-- 两套界面各自的脚本，互不引用 -->
+<!-- 主菜单自己的脚本 -->
 <script src="menu-view.js"></script>
-<script src="settings-view.js"></script>
 
-<!-- 唯一的协调者：把两套界面接起来、接上 C#。放在最后，前面都定义好才跑。 -->
+<!-- 剧本数据。「章节选择」整页靠它 —— 这一页没有 app.js，所以直接引 story.js。
+     story.js 由 Unity 菜单 WanXuan > 导出 Web 剧本 生成；没有这个文件时
+     那一页会老实地显示"拿不到章节列表"，而不是画一条假的时间线。 -->
+<script src="../story.js"></script>
+
+<!-- 动态背景。要在 boot.js 之前——boot.js 里会调 MenuBackground.init()。
+     也不依赖 bridge.js，所以放哪都行，放在这里是为了和上面同族文件挨着。 -->
+<script src="background.js"></script>
+
+<!-- Animus 归档系统。三个文件有**先后要求**：
+       animus.js 定义外壳 → 两个 module 在加载时就调 Animus.register()，
+       所以外壳必须排在前面。 -->
+<script src="../animus/animus.js"></script>
+<script src="../animus/settings-module.js"></script>
+<script src="../animus/memory-module.js"></script>
+
+<!-- 唯一的协调者：把界面接起来、接上 C#。放在最后，前面都定义好才跑。 -->
 <script src="boot.js"></script>
 
 </body>

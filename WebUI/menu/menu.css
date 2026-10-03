@@ -21,10 +21,21 @@
    注意：文字用的是 --plate-text（主题里"深色底上的字"那一档），
    **不是** --text-main —— 后者是给浅色面板用的深棕，压在深色遮罩上会看不见。
 
-   一个刻意的例外：左侧那条渐变的颜色是**写死**的 rgba(42,28,18,·)，
+   一个刻意的例外：本文件里那条渐变的颜色是**写死**的 rgba(42,28,18,·)，
    没有取 --ending-scrim。原因：--ending-scrim 是"整套渐变"，抽不出单通道的 alpha；
    而主菜单页不做主题切换（永远走 room 默认值），所以写死反而更可预测。
    42,28,18 就是 room 主题 --ending-scrim 的收尾色。
+
+   ## 分层（详见 background.css）
+
+   本文件里这几层是**叠在动态背景之上**的，z-index 有明确次序：
+     #menu-bg（背景，z 0） → #menu-layer（本文件，z 1）
+     → Animus 归档系统（animus.css，z 9000）
+     → 立绘（库自己的 #oml2d-stage，z 9997） → #character-warning（z 10000）
+   底色（那一大片暖黑）**不在本文件里**，在 background.css 的 #menu-bg 上；
+   这里只管"把文字区压深、把右边让给她"。
+
+   Animus 排在立绘**下面**是刻意的：打开设置时她还在，只是被冷白的光洗过一遍。
    ============================================================ */
 
 /* ---------- 关键帧 ---------- */
@@ -64,21 +75,25 @@
    ============================================================ */
 
 /*
-  整层：横向渐变，左边实、右边透。
+  整层：压在动态背景（#menu-bg，z-index 0）之上的一条横向渐变。
+  左边实、右边透 —— 但**不再是唯一的底色**了。
 
-  立绘在**网页里**（和这一层同级、由 OML2D 插进来的 canvas），
-  所以这条渐变也同时压在她身上 —— 这是有意的：右侧 alpha 归零让她的
-  主体完全不受影响，只在最左边（选项后面）压深。76% 之后 alpha 为 0。
+  底色现在由 background.css 的 #menu-bg 提供（近墨暖黑 → 暖木色），
+  这一层只负责"把文字区压深一点、把右边让给她"，所以 alpha 比上一版
+  整体调低了约三成。以前它下面什么都没有（透到 Unity 相机的奶油色），
+  必须自己压到 0.88 才压得住；现在底色本身就是深的，再压到 0.88
+  左边会死成一块纯黑，网格和尘埃全被吃掉。
 */
 #menu-layer {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: linear-gradient(
     90deg,
-    rgba(42, 28, 18, 0.88) 0%,
-    rgba(42, 28, 18, 0.74) 30%,
-    rgba(42, 28, 18, 0.34) 52%,
-    rgba(42, 28, 18, 0.06) 68%,
+    rgba(42, 28, 18, 0.64) 0%,
+    rgba(42, 28, 18, 0.52) 30%,
+    rgba(42, 28, 18, 0.22) 52%,
+    rgba(42, 28, 18, 0.04) 68%,
     rgba(42, 28, 18, 0) 76%
   );
   opacity: 1;
@@ -249,6 +264,89 @@
 }
 
 /*
+  立绘的亮度 / 饱和度 / 显示与否 —— 由设置页的「立绘」子页控制。
+
+  **不写内联样式**：canvas 是 oh-my-live2d 自己插进来的，库在 resize 和
+  换模型时会重写它的 element.style，写在内联上的 filter 会被抹掉。
+  改成 JS 只改 :root 上的两个变量、真正生效的是这条规则，库就碰不到它。
+
+  transition 放在这里而不是 JS 里，是为了拖动滑杆时它是**连续**变的 ——
+  0.2s 的过渡正好把滑杆的离散取值抹平。
+*/
+#oml2d-stage {
+  filter: brightness(var(--vn-portrait-brightness, 1))
+          saturate(var(--vn-portrait-saturation, 1));
+  transition: filter 0.2s ease;
+}
+
+/*
+  立绘的**姿态**（位置 / 大小）—— 由「设置」里切子页驱动，见 boot.js 的 PAGE_MOODS。
+
+  ## 为什么挂在 canvas 上，不挂 stage 上
+
+  stage 的 transform **归 oh-my-live2d 所有**：它滑入滑出靠的就是
+  `@keyframes oml2d-stage-slide-in/out` 改 stage 的 transform。
+  我们再往 stage 上写 transform 会**和那两条动画互相覆盖**（谁后写谁生效，
+  表现是"她出场出到一半卡住"或者"滑出去的时候滑不动"）。
+  canvas 是 stage 的子元素，动它是**叠加**关系 —— 库管 stage，我们管 canvas。
+
+  ## 为什么变量而不是内联样式
+
+  同上面亮度那条：库会重写 canvas 的 element.style，写内联的会被抹掉。
+  JS 只改 :root 上的变量，真正生效的是这条规则。
+
+  ## transform-origin 放在她脚下那条竖轴上
+
+  原点不是"右下角"，是 **82% / 100%** —— 她脚下那条竖轴的大致位置。
+  这个数是**推**出来的：`animus.css` 里有一条实测记录
+  "立绘从 0.64W 就开始（她比看上去大得多）"，她在画布上占 0.64W~1.0W，
+  中心就是 0.82W。
+
+  为什么值得换掉右下角：**只有绕她自己那条轴转，rotate 才是"倾斜"**。
+  绕右下角转，她是在绕一个一米外的点画弧 —— 那看起来是"整体位移"，不是身体语言。
+  缩放也顺带更对：绕她的轴放大 = 原地长大，绕右上角/右下角放大都会往一边飘。
+
+  **全身取景（设置 → 立绘 那一页）这一条不用改**：那一档是把她整个人
+  缩到画布高度里、右对齐，她的轴仍然落在 0.82W 附近（框宽变窄了，
+  但整框也整体右移了，两个效果相抵）。所以同一个数在两档取景下都成立。
+
+  > 判据：**原地放大、原地倾斜**。飘了才需要动这个数 ——
+  > 它是唯一的调节点，改完两档取景一起变。
+
+  ## transition
+
+  0.55s，和 Animus 推门那一下（进的动画 0.5s）基本对齐 ——
+  两边一起动才是"她跟着这一页变了"，快了像瞬移、慢了像没反应。
+
+  ## 为什么要 `!important`
+
+  库把它自己那张样式表**运行时 append 到 head**（`<style id="oml2d-global-style">`），
+  在文档顺序上排在我们的 `<link>` 后面。同特异度（都是 `#oml2d-canvas`）时
+  **后来者赢** —— 也就是说库只要给 canvas 写一条 transform，我们这条就被吃掉，
+  而且是静默的（改完"看起来没生效"，实际是被覆盖了）。
+  和上面 `pointer-events` 那条 `!important` 是同一类防御：库管得着的地方，
+  我们要么不碰，要么明确压过去。
+*/
+#oml2d-canvas {
+  /* 顺序有意义：先绕原点转，再缩放，最后整体平移。
+     平移写在最前面 = 它最后生效，所以 dx/dy 是**没被缩放过的**视口像素
+     （不然 scale 一变，同一个 dx 走的距离就跟着变，那没法调）。 */
+  transform:
+    translate(var(--vn-portrait-dx, 0px), var(--vn-portrait-dy, 0px))
+    scale(var(--vn-portrait-scale, 1))
+    rotate(var(--vn-portrait-rotate, 0deg)) !important;
+  transform-origin: 82% 100% !important;
+  transition: transform 0.55s cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+/* 关掉立绘：用 visibility 而不是 display，
+   因为 display:none 会让库在 resize 时算出的尺寸变成 0，
+   再打开时她要重新布局一次（能看见她"跳"回来）。 */
+body.portrait-hidden #oml2d-stage {
+  visibility: hidden;
+}
+
+/*
   干掉气泡。
 
   为什么用 CSS 而不是配置：`sayHello: false` 并没有拦住它（气泡照旧出现），
@@ -269,6 +367,8 @@
   position: absolute;
   right: 2vw;
   bottom: 2vw;
+  /* 盖在立绘之上：这是一条错误说明，任何时候都必须看得见 */
+  z-index: 10000;
   max-width: 40vw;
   padding: 1vw 1.4vw;
   border-radius: 8px;
@@ -281,3 +381,113 @@
 }
 
 #character-warning.hidden { display: none; }
+
+/* ============================================================
+   置灰的选项 —— 目前只有「继续游戏」在没有存档时会这样
+   ============================================================
+   刻意不用浏览器的默认灰：默认灰在深色遮罩上几乎看不见。
+   同时把左侧短横线也一起压暗（不然它会比文字还亮，看着像渲染坏了），
+   并禁止位移，免得鼠标扫过时还会有反应。
+   （置灰用 disabled 属性，由 menu-view.js 的 setContinueEnabled 设置；
+     存档的有无由 C# 通过 menu.show 的 hasSave 下发。） */
+#menu-buttons button:disabled {
+  color: rgba(255, 247, 234, 0.26);
+  cursor: default;
+  transform: none;
+}
+
+#menu-buttons button:disabled::before {
+  width: 0.95vw;
+  background: rgba(255, 247, 234, 0.12);
+}
+
+/* ============================================================
+   进游戏：**她闯进来**（不是淡出）
+   ------------------------------------------------------------
+   叙事上这一下是"归档软件被真人撞开"：
+     · 冷白的那层 OS 界面**往后退**（缩小、被推向左、故障撕裂）
+     · 她**扑向镜头**（放大、亮度顶起来 = 光环炸开）
+     · 背景层跟着震一下（她被撞进来的那一下）
+     · 最后她的光盖满整屏 —— 光过去之后就是她的世界（游戏页）
+   故障那部分用的是现成的那套（`#animus.scan` → `.ax-tear` / `.ax-scanbar`，
+   由 boot.js 调 `Animus.glitch()` 触发）。
+
+   ⚠ **两边的方向必须相反**：UI 退、她进。
+     方向一致只会读成"整页放大"—— 那是镜头在动，不是"有人闯进来"。
+     她本来就画在 OS 层**之上**（立绘 z 9997 > #animus 9000），
+     所以"她穿过去"这件事在层次上本来就成立，动画只是把它演出来。
+
+   ⚠ 时间轴（总 520ms，`LEAVING_MS` 和它对齐）：
+       0–190ms   她冲上来 + OS 层被撞坏（这段时间是看得见的）
+       190–370ms 光从她身上炸开、盖满屏（她整个人淹在自己的光里）
+       370–520ms 白光保持住 —— **C# 就是在这片白里换场景的**
+   ============================================================ */
+body.menu-leaving #animus {
+  animation: menu-shove 520ms cubic-bezier(0.4, 0, 0.9, 0.5) forwards;
+}
+
+/* 被撞开的那层：先抖两下（幅度小、频率高才像被撞，不像在漂），
+   然后整层缩小、往左退（她在右边，所以往左退）、淡出。 */
+@keyframes menu-shove {
+  0%   { transform: scale(1) translate3d(0, 0, 0); opacity: 1; }
+  12%  { transform: scale(0.995) translate3d(-8px, 4px, 0); }
+  20%  { transform: scale(0.99) translate3d(7px, -4px, 0); }
+  28%  { transform: scale(0.985) translate3d(-5px, 2px, 0); }
+  100% { transform: scale(0.88) translate3d(-4vw, 0, 0); opacity: 0; }
+}
+
+/* 背景层（`#stage` 里那一层）：只震，不淡 —— 淡交给那层光去做。
+   它和上图是**两层**（Animus 挂在 document.body 上，不在 #stage 里），
+   所以两个 keyframes 是分开的。 */
+body.menu-leaving #stage {
+  animation: menu-quake 520ms ease-out forwards;
+  /* 退场期间别再收鼠标事件（虽然几百毫秒后整页就换了） */
+  pointer-events: none;
+}
+
+@keyframes menu-quake {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  12%  { transform: translate3d(-9px, 5px, 0) scale(1.005); }
+  22%  { transform: translate3d(8px, -5px, 0) scale(1.003); }
+  32%  { transform: translate3d(-5px, 3px, 0) scale(1.002); }
+  100% { transform: translate3d(0, 0, 0) scale(1.012); }
+}
+
+/* 她扑向镜头。
+   ⚠ **不能用 keyframes 写 transform。** `#oml2d-canvas` 基础规则上那条 transform
+      带 `!important`（为了压住库运行时注入的样式表），而 CSS 级联的顺序是
+      "动画 < important 声明" —— keyframes 里写的 transform 会被那条直接吃掉，
+      表现就是"她一动不动"。
+   ✅ 走**姿态变量**：`--vn-portrait-scale` 等由 boot.js 的
+      `MenuCharacter.setPose()` 设，基础规则照旧生效，这里只改时长和曲线。
+      放大 1.35 会把她的头推出画面上缘（她是从下往上长的），
+      所以姿态里同时给了 dy 把她压回来 —— 读起来正好是"怼到镜头前"。
+      这几个数在 boot.js，调那儿。
+   ⚠ 时长 520ms 和 boot.js 的 LEAVING_MS 对齐。曲线是"先蓄力再加速"：
+      匀速放大读起来是镜头推近，加速放大才像人扑过来。 */
+body.menu-leaving #oml2d-canvas {
+  transition: transform 520ms cubic-bezier(0.55, 0, 1, 0.6), filter 300ms ease;
+  /* 亮度顶起来 = 光环要炸了（真正的"光"是那层 veil） */
+  filter: brightness(1.45) saturate(1.15);
+}
+
+/* 那层光：**炸开**，不是慢慢亮。
+   `transition-delay` 那 190ms 是为了让她先冲出来——不然光立刻盖住，
+   那一下冲刺就白做了（读起来还是"淡出"）。
+   游戏页那边收的时候用的是另一个时长（更快，见 style.css），
+   同一个元素两个方向不同时长是刻意的：出来要"炸"，回去要"散"。 */
+body.menu-leaving #handoff-veil {
+  transition-duration: 180ms;
+  transition-delay: 190ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* 退场**停在光上**，不切黑、也不留白：
+   到 520ms（boot.js 的 LEAVING_MS）发消息时，屏幕上是满屏的**当前主题的光**。
+   C# 就在这片光里换场景 —— Unity 侧的 ChapterTransition 用同样的三个色值铺了同一片光，
+   所以玩家看到的是"光一直在"，而不是"换了一次场景"。
+   接着由新场景补上动态：**从中心长出大小不一的色块**（每块颜色取自场景对应位置），
+   铺满后停到网页 ready，再渐隐露出真实场景（见 Assets/Scripts/UI/ChapterTransition.cs）。
+
+   这就是参考里那套做法（《失落星船：马拉松》进图）：**在静止里切换，动态留给新场景**。 */
+

@@ -24,26 +24,18 @@ public class WebSettingsChannel : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoInstall()
     {
-        // 先确保设置读出来了。放这里而不是 Awake：AfterSceneLoad 跑在场景里所有
-        // 组件的 Awake 之后，AudioListener 一定已经存在，音量能立刻落到新场景上。
+        // 走 UwbAutoInstall：启动场景立即挂一次，之后每次场景载入再挂一次。
+        // 换场景后必须重挂，否则新场景里网页改的设置（音量等）落不到 Unity。
+        UwbAutoInstall.Register(Install);
+    }
+
+    private static void Install()
+    {
+        // 先确保设置读出来了。放这里而不是 Awake：安装点跑在场景里所有组件的
+        // Awake 之后，AudioListener 一定已经存在，音量能立刻落到新场景上。
         UiSettingsStore.EnsureLoaded();
 
-        // 必须写全 UnityEngine.Object：本文件同时 using System 和 UnityEngine，
-        // 直接写 Object 会在 System.Object 和 UnityEngine.Object 之间产生 CS0104 歧义。
-        var managers = UnityEngine.Object.FindObjectsByType<BaseUwbClientManager>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        for (var i = 0; i < managers.Length; i++)
-        {
-            var manager = managers[i];
-            if (manager == null || manager.GetComponent<WebSettingsChannel>() != null)
-            {
-                continue;
-            }
-
-            manager.gameObject.AddComponent<WebSettingsChannel>();
-            Debug.Log($"[WebSettingsChannel] 已挂到 “{manager.gameObject.name}” 上。");
-        }
+        UwbAutoInstall.Attach<WebSettingsChannel>("WebSettingsChannel");
     }
 
     /// <summary>把当前设置发给网页。网页的滑杆初值应当来自这里，而不是 HTML 上写死的默认值。</summary>
@@ -125,15 +117,27 @@ public class WebSettingsChannel : MonoBehaviour
             return;
         }
 
-        // 约定：网页每次都发完整的四项。这里不做"缺字段就保持原值"的推断 ——
+        // 约定：网页每次都发完整的**全部**字段。这里不做"缺字段就保持原值"的推断 ——
         // JsonUtility 对缺失的 float 字段给的是 0，靠 0 判断"没发"会把文字速度
         // 悄悄改成 0 毫秒（瞬间出字）。缺字段的代价太大，不如约定必须齐全。
+        //
+        // 所以：往 UiSettings 加字段时，**这里必须一起加**。
+        // 漏了的话它会被写成 0（bool 是 false），而且不报任何错 ——
+        // 表现就是"立绘突然不见了"这种查半天查不到的地方。
         UiSettingsStore.ApplyFrom(new UiSettings
         {
             textSpeed = payload.textSpeed,
             autoDelay = payload.autoDelay,
             volume = payload.volume,
-            fullscreen = payload.fullscreen
+            bgmVolume = payload.bgmVolume,
+            seVolume = payload.seVolume,
+            voiceVolume = payload.voiceVolume,
+            fullscreen = payload.fullscreen,
+            portraitVisible = payload.portraitVisible,
+            portraitBrightness = payload.portraitBrightness,
+            portraitSaturation = payload.portraitSaturation,
+            animusTheme = payload.animusTheme,
+            animusThemeMode = payload.animusThemeMode
         });
 
         // 回一条确认。这不是多余的：界面上显示的是"44%"这种二次加工过的值，
@@ -148,7 +152,34 @@ public class WebSettingsChannel : MonoBehaviour
         public float textSpeed;
         public float autoDelay;
         public float volume;
+        public float bgmVolume;
+        public float seVolume;
+
+        /// <summary>
+        /// 语音通道。**这一条必须和网页一起加**（见上面那段"往 UiSettings
+        /// 加字段时这里必须一起加"）—— 只在 C# 加、网页没发的话，
+        /// JsonUtility 给缺失的 float 是 **0**，于是每次改任何设置
+        /// 都会把语音音量写成 0（= 静音，而且只有以后接上语音才看得出来）。
+        /// </summary>
+        public float voiceVolume;
         public bool fullscreen;
+        public bool portraitVisible;
+        public float portraitBrightness;
+        public float portraitSaturation;
+
+        /// <summary>
+        /// 归档系统的配色主题。**字符串字段也必须在这里列出来** ——
+        /// JsonUtility 对缺失字段给的是 null，漏了的话每次设置变更都会
+        /// 把主题重置回默认值（而且不报错）。
+        /// </summary>
+        public string animusTheme;
+
+        /// <summary>
+        /// 主题模式：fixed / time / story。同上 —— 它也是字符串，
+        /// 漏在这里的表现更隐蔽：主题每次都退回 fixed，
+        /// 也就是"跟随时间/进度选了没用，重开就变回固定"。
+        /// </summary>
+        public string animusThemeMode;
     }
 
     [Serializable]

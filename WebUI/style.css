@@ -431,6 +431,61 @@
    ============================================================ */
 
 
+/* ============================================================
+   从主菜单进来的那一下（后半段）：**从她的光里收出来**
+   ------------------------------------------------------------
+   主菜单那边演的是"归档软件被真人撞开"（见 menu/menu.css），
+   这一页接的是同一下：
+     · 那层光**收得快**（240ms）—— 它是"我们从白光里穿出来"，
+       不是"光慢慢散开"。theme.css 里那个 440ms 是通用值，这里是本页覆盖。
+     · 界面**自己落位**（对话框从下往上落一点、控制条稍后淡入）——
+       只把光淡掉的话，揭开看到的是一个静止画面，那是"切了个镜头"；
+       界面自己动一下才读成"我们进来了"。
+
+   触发：`app.js` 的 `dropHandoffVeil()` 给 body 加 `handoff-arriving`
+   （第一句话显示出来的时候），1 秒后摘掉。
+   ============================================================ */
+#handoff-veil {
+  /* 覆盖 theme.css 的 440ms：出来要快 */
+  transition-duration: 240ms;
+}
+
+/* 回主菜单：**同样停在光上**，不切黑。
+   和主菜单页退场是同一套（见 menu/menu.css）：先升光、再发消息，
+   C# 在那片光里换场景，新场景（主菜单）再补上动态。
+
+   触发：app.js 的 leaveToMenu()（暂停菜单那颗 / 控制条那颗 / M 键都走它），
+   300ms 后发 ui.menu —— 发的时候光已经铺满（LEAVING_TO_MENU_MS 与这里对齐）。
+   这层光本身的样子在 theme.css（主题色渐变），这里只管时长。 */
+body.leaving-to-menu #handoff-veil {
+  transition-duration: 300ms;
+}
+
+/* `:not(.hidden)` / `:not(.ui-hidden)` 是防线：动画会压过普通声明，
+   所以要是第一句话正好发生在"隐藏 UI"那一档（`ui.hide`、选项层压着），
+   这条动画会把本该藏起来的东西**重新显示出来**。加个否定选择器就不抢了。 */
+body.handoff-arriving:not(.ui-hidden) #dialogue-layer:not(.hidden) {
+  animation: game-arrive 340ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+
+body.handoff-arriving:not(.ui-hidden) #controls,
+body.handoff-arriving:not(.ui-hidden) #hint:not(.hidden) {
+  animation: game-fade 420ms ease backwards;
+  animation-delay: 140ms;
+}
+
+/* 注意它自带 translateX(-50%) —— 那是 `#dialogue-layer` 的居中，
+   动画里必须原样带上，否则落位的那一瞬间对话框会跳到画面右半边。 */
+@keyframes game-arrive {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes game-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ---------- 操作提示 ---------- */
 #hint {
   position: absolute;

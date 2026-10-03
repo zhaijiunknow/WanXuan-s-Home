@@ -16,19 +16,31 @@ window.MainMenuView = (function () {
   /** 当前悬停/聚焦的选项 key，用来去重。 */
   var hovered = null;
 
-  /** 排查探针：各只打一次。查到原因后可以删掉。 */
-  var probeMove = false;
-  var probeHover = false;
-
   /** 按钮被点的通知。由 boot.js 填，界面自己不认识它们的目的地。 */
   var handlers = {
+    continue: null,
     start: null,
     settings: null,
     quit: null,
-    /* 鼠标进出选项的通知。参数是按钮的 data-menu 值（'start' / 'settings' / 'quit'），
-       离开时传 null。界面不知道"悬停该让她做什么表情"——那是 boot.js 的事。 */
+    /* 鼠标进出选项的通知。参数是按钮的 data-menu 值
+       （'continue' / 'start' / 'settings' / 'quit'），离开时传 null。
+       界面不知道"悬停该让她做什么表情"——那是 boot.js 的事。 */
     hover: null
   };
+
+  /**
+   * 置灰 / 恢复「继续游戏」。由 boot.js 按 C# 下发的 hasSave 调用。
+   *
+   * 用 disabled 而不是隐藏：灰着的按钮能让人知道"这个游戏有存档这回事"，
+   * 隐藏则什么信息都不给。同时把它从悬停响应里摘掉（disabled 的按钮本来
+   * 也不触发 mouseover，所以这里不用额外处理）。
+   */
+  function setContinueEnabled(enabled) {
+    var button = dom.buttons.querySelector('button[data-menu="continue"]');
+    if (button) {
+      button.disabled = !enabled;
+    }
+  }
 
   /** 通知一次悬停状态。key 为 null 表示离开了所有选项。 */
   function emitHover(key) {
@@ -65,27 +77,10 @@ window.MainMenuView = (function () {
       }
     });
 
-    /* ---- 事件到达探针（各打一次，排查用） ----
-       目的：把"鼠标事件没到网页"和"事件到了但被别的东西挡住"分开。
-       分不出来就会一直在错的那一层改。 */
-    document.addEventListener('mousemove', function () {
-      if (!probeMove) {
-        probeMove = true;
-        console.log('[VN:menu] 探针：页面收到 mousemove —— 鼠标事件能到网页。');
-      }
-    });
-
-    /* ---- 悬停 / 聚焦 → 通知外面（boot.js 拿它去切立绘表情） ----
+    /* ---- 悬停 / 聚焦 → 通知外面（boot.js 拿它去切立绘表情、点亮背景的线索） ----
        用 mouseover 委托而不是 mouseenter：后者不冒泡，得给每个按钮单独绑。
        而且这里会**去重**，否则在同一个按钮内部移动鼠标会连着触发几十次。 */
     dom.buttons.addEventListener('mouseover', function (event) {
-      if (!probeHover) {
-        probeHover = true;
-        console.log('[VN:menu] 探针：选项区收到 mouseover，target=<' +
-          (event.target && event.target.tagName) + ' class="' +
-          (event.target && event.target.className) + '">');
-      }
-
       setHovered(keyOf(event.target));
     });
 
@@ -201,6 +196,7 @@ window.MainMenuView = (function () {
     hide: hide,
     isVisible: isVisible,
     setText: setText,
-    setHint: setHint
+    setHint: setHint,
+    setContinueEnabled: setContinueEnabled
   };
 })();

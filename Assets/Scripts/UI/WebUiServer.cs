@@ -41,8 +41,9 @@ using VoltstroStudios.UnityWebBrowser.Core;
 ///
 /// 引擎是**异步启动**的，它把 initialUrl 作为命令行参数传给 CEF 进程
 /// （WebBrowserClient 里 argsBuilder.AppendArgument("initial-url", initialUrl)）。
-/// 本组件在 AfterSceneLoad 就跑完了，早于引擎读参数，所以改 initialUrl 是有效的 ——
-/// 页面**不会**先按 file:// 加载一次再跳转。
+/// 本组件在场景对象的 Awake **之前**就跑完了（见 UwbAutoInstall：启动场景走
+/// AfterSceneLoad，之后每次切场景走 SceneManager.sceneLoaded），
+/// 早于引擎读参数，所以改 initialUrl 是有效的 —— 页面**不会**先按 file:// 加载一次再跳转。
 ///
 /// 万一没生效（引擎起得比预期快），Update 里有一条兜底：连上之后若一直没人来取起始页，
 /// 就显式 LoadUrl 一次。所以这条路不会静默失败成空白页。
@@ -85,21 +86,10 @@ public class WebUiServer : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoInstall()
     {
-        // 必须写全 UnityEngine.Object：本文件同时 using System 和 UnityEngine，
-        // 直接写 Object 会在 System.Object 和 UnityEngine.Object 之间产生 CS0104 歧义。
-        var managers = UnityEngine.Object.FindObjectsByType<BaseUwbClientManager>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        for (var i = 0; i < managers.Length; i++)
-        {
-            var manager = managers[i];
-            if (manager == null || manager.GetComponent<WebUiServer>() != null)
-            {
-                continue;
-            }
-
-            manager.gameObject.AddComponent<WebUiServer>();
-        }
+        // 走 UwbAutoInstall：启动场景立即挂一次，之后每次场景载入再挂一次。
+        // 游戏场景那台 WebView 也要有自己的本机服务，否则它的 initialUrl 会保持 file://，
+        // 页面拿不到 /models/ 立绘与 story.json（两个都挂在服务上）。
+        UwbAutoInstall.Register(() => UwbAutoInstall.Attach<WebUiServer>("WebUiServer"));
     }
 
     private void Awake()

@@ -58,27 +58,9 @@ public class WebInputFix : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoInstall()
     {
-        // 显式限定 UnityEngine.Object：本文件暂时没 using System，但将来一旦加上，
-        // 直接写 Object 就会变成 CS0104 歧义。
-        var managers = UnityEngine.Object.FindObjectsByType<BaseUwbClientManager>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        for (var i = 0; i < managers.Length; i++)
-        {
-            var manager = managers[i];
-            if (manager == null)
-            {
-                continue;
-            }
-
-            if (manager.GetComponent<WebInputFix>() != null)
-            {
-                continue;
-            }
-
-            manager.gameObject.AddComponent<WebInputFix>();
-            Debug.Log($"[WebInputFix] 已接管 UWB 的鼠标输入（挂到 “{manager.gameObject.name}” 上）。");
-        }
+        // 走 UwbAutoInstall：启动场景立即挂一次，之后每次场景载入再挂一次。
+        // 主菜单的鼠标是好的、进游戏后键鼠失灵，就是漏了后一半。
+        UwbAutoInstall.Register(() => UwbAutoInstall.Attach<WebInputFix>("WebInputFix"));
     }
 
     private void Awake()

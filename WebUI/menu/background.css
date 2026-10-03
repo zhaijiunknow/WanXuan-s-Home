@@ -1,0 +1,187 @@
+/* ============================================================
+   皖萱的家 · 主菜单动态背景（menu/background.css）
+   ------------------------------------------------------------
+   本文件只属于 menu/index.html，和 menu.css / settings.css 并列。
+   它提供的是**背景**：底色、网格、呼吸光、扫描掠光、暗角，以及一块
+   给 background.js 画索引绳和线索链用的 canvas。
+
+   ## 为什么要把底色搬到这里（不再靠 Unity 的相机清屏色）
+
+   上一版页面 body 是透明的，右边那一大片奶油色其实是 MainMenu 场景里
+   相机的 Background Color。这有两个问题：
+     1) 它是**死**的 —— 想在它上面加任何动效都只能"盖"，盖上去就发灰；
+     2) 网页的样子依赖场景配置，换个场景或丢进 Build 里跑就可能不是这个色。
+
+   现在底色由本文件给出，页面自成一体。代价是：主菜单页不再是"透出
+   房间"的，而是**自己的一个空间**。对主菜单来说这是对的（它本来就
+   是独立场景），而且立绘是网页里的（z-index 9997），不受影响。
+
+   ## 层次（从后往前，全部在 #menu-bg 内部）
+
+     .bg-grid      记忆网格 —— 极慢地斜向漂移
+     .bg-bloom     呼吸光   —— 她站的位置，26 秒一次呼吸
+     <canvas>      索引绳 + 线索链 + 尘埃（background.js 负责画）
+     .bg-sweep     扫描掠光 —— 19 秒一次横向扫过
+     .bg-vignette  暗角     —— 把注意力收回画面中间
+
+   #menu-bg 自己铺满视口、不接收指针事件、z-index 0；
+   主菜单层 z-index 1、设置层 z-index 2（分别在 menu.css / settings.css 里）。
+   ============================================================ */
+
+#menu-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+
+  /* 背景是纯显示层，绝不接收指针事件。
+     这一条是硬要求：任何铺满视口的元素忘了关它，菜单就点不动了
+     （menu.css 里 #oml2d-stage 就是踩过这个坑）。 */
+  pointer-events: none;
+
+  /* ---- 底色：一间只点了一盏灯的暖房 ----
+     从近墨的暖黑（左）过渡到暖木色（右），右边的光就是她站的位置。
+     两个 radial 叠在 linear 之上：
+       ① 她身后的暖光   ② 左侧再压一层，把文字区做成"深景" */
+  background:
+    radial-gradient(105% 78% at 80% 51%,
+      rgba(255, 233, 198, 0.17) 0%,
+      rgba(255, 226, 184, 0.06) 38%,
+      rgba(255, 226, 184, 0) 66%),
+    radial-gradient(125% 105% at 4% 50%,
+      rgba(10, 6, 3, 0.50) 0%,
+      rgba(10, 6, 3, 0) 74%),
+    linear-gradient(102deg,
+      #1C120C 0%,
+      #261812 28%,
+      #35221A 52%,
+      #4A3126 74%,
+      #5E4032 100%);
+}
+
+/* ============================================================
+   记忆网格 —— 一层几乎看不见的刻度，给画面一个"空间"而不是"一张图"
+   ============================================================ */
+#menu-bg .bg-grid {
+  position: absolute;
+  /* 比视口大一圈，这样漂移的时候四个边不会露出空白 */
+  inset: -35%;
+  background-image:
+    linear-gradient(rgba(232, 197, 106, 0.075) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 197, 106, 0.075) 1px, transparent 1px);
+  background-size: 6.5vw 6.5vw;
+
+  /* 中间实、四周虚：网格是"无限延伸"的暗示，不该有边界感 */
+  -webkit-mask-image: radial-gradient(115% 88% at 50% 50%,
+    rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.32) 56%, rgba(0, 0, 0, 0) 84%);
+  mask-image: radial-gradient(115% 88% at 50% 50%,
+    rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.32) 56%, rgba(0, 0, 0, 0) 84%);
+
+  animation: bg-grid-drift 72s linear infinite;
+  will-change: transform;
+}
+
+/* 位移量必须正好等于 background-size，否则循环接缝会跳一下 */
+@keyframes bg-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(6.5vw, 6.5vw, 0); }
+}
+
+/* ============================================================
+   呼吸光 —— 她身后的暖光在缓慢地明灭
+   ------------------------------------------------------------
+   transform 和 opacity 一起动，是因为只动其中一个会像"灯泡调光"；
+   两个一起才有"光在流动"的感觉。
+   ============================================================ */
+#menu-bg .bg-bloom {
+  position: absolute;
+  left: 80%;
+  top: 51%;
+  width: 66vw;
+  height: 66vw;
+  margin: -33vw 0 0 -33vw;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(232, 197, 106, 0.20) 0%,
+    rgba(232, 197, 106, 0.07) 36%,
+    rgba(232, 197, 106, 0) 67%);
+  animation: bg-bloom 26s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+@keyframes bg-bloom {
+  from { transform: scale(0.90); opacity: 0.62; }
+  to   { transform: scale(1.10); opacity: 1; }
+}
+
+/* ============================================================
+   canvas —— 索引绳 / 线索链 / 尘埃，全部由 background.js 每帧重画
+   ============================================================ */
+#menu-bg-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================
+   扫描掠光 —— 一条很淡的斜光带缓缓扫过
+   ------------------------------------------------------------
+   这一条是"数据在读取"的暗示，来自 Animus 那类界面。
+   刻意做得很淡（峰值 alpha 0.09）：它是**节奏**，不是内容；
+   一旦看得清就成了"屏保"，就俗了。
+   ============================================================ */
+#menu-bg .bg-sweep {
+  position: absolute;
+  left: -32vw;
+  top: -25%;
+  bottom: -25%;
+  width: 26vw;
+  background: linear-gradient(90deg,
+    rgba(255, 247, 234, 0) 0%,
+    rgba(255, 247, 234, 0.055) 46%,
+    rgba(255, 247, 234, 0.09) 50%,
+    rgba(255, 247, 234, 0.055) 54%,
+    rgba(255, 247, 234, 0) 100%);
+  transform: translate3d(0, 0, 0) skewX(-14deg);
+  animation: bg-sweep 19s ease-in-out infinite;
+  animation-delay: 2.5s;
+  will-change: transform;
+}
+
+/* skew 必须在每一帧里重复写，否则会被 translate 覆盖掉（不是叠加） */
+@keyframes bg-sweep {
+  0%        { transform: translate3d(0, 0, 0) skewX(-14deg); opacity: 0; }
+  9%        { transform: translate3d(0, 0, 0) skewX(-14deg); opacity: 1; }
+  72%       { transform: translate3d(0, 0, 0) skewX(-14deg); opacity: 1; }
+  86%, 100% { transform: translate3d(152vw, 0, 0) skewX(-14deg); opacity: 0; }
+}
+
+/* ============================================================
+   暗角 —— 把视线收回画面中间，顺便让四条边和界面"咬"在一起
+   ============================================================ */
+#menu-bg .bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(132% 104% at 50% 50%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(8, 4, 2, 0.38) 100%);
+}
+
+/* ============================================================
+   减少动态效果 —— 系统开了这个开关就把装饰性动画全停掉
+   ------------------------------------------------------------
+   注意 canvas 那一层由 background.js 自己判断（它会只画一帧静态的），
+   这里管的是 CSS 那几层。
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  #menu-bg .bg-grid,
+  #menu-bg .bg-bloom {
+    animation: none;
+  }
+
+  #menu-bg .bg-sweep {
+    display: none;
+  }
+}

@@ -1,0 +1,2088 @@
+/* ============================================================
+   皖萱的家 · Animus Desktop（animus/animus.css）
+   ------------------------------------------------------------
+   这是**第三个界面系统**，和主菜单、游戏界面并列：
+
+     主菜单  menu/      MainMenu 场景    暖色暗底 + 立绘
+     游戏    index.html MainRoom 场景    房间 + 对话框
+     Animus  animus/    两处都会出现     暖木暗底 + 归档台
+
+   它单独成一套的理由和 bridge.js 一样：**它是被两处共用的一个系统**。
+
+   ## 和上一版最大的区别：绳子是导航，不是装饰
+
+   上一版是"等距竖排的方块 + 旁边画一条绳子"。那本质上还是一个**选项卡列表**，
+   绳子只是背景图案 —— 所以没有那套界面的味道。
+
+   ## 隐喻：**归档**，不是基因
+
+   AC2 那套界面的底子是"翻阅血脉档案"。**我们没有那条线**，硬套过来是错的
+   —— 剧本里从头到尾没有血缘、没有遗传、没有族谱。硬用只会让人以为要讲这个。
+
+   剧本自己的词是**归档**。4-1 归还的钟声：
+
+     「皖萱那时正坐在地毯上，整理前几天拍下来的甜点照片，
+       说是要给自己的『调查样本』做归档」
+
+   所以这一版：**一条横贯画面的索引绳，每张样本卡挂在绳上**。
+   绳就是条目之间的那根线，不是图案。
+
+     · 绳放大、居中偏左，是画面的主体之一（不是细边栏）
+     · 每个子页是一张**挂在绳上的卡**（卡的横坐标由绳的相位算出来），
+       随绳一起摆动 —— 卡会缓慢地左右游走，标签留在原地用引线连着
+     · 切换子页时，一段**亮弧沿着绳从旧节点跑到新节点**（这是那套界面的招牌动作）
+
+   第四节 4-3 记忆回廊还专门否掉了"宏大蒙太奇"那种念想：
+   「所谓回忆不是电影那样宏大的蒙太奇，更像食物残留在舌尖上的味道」
+   —— 所以绳是**一根细的、会荡的绳**，不是铺满屏幕的发光结构。
+
+   ## 子页的通用布局（AC2 三列）
+
+     左：分类导航（就是那条链）
+     中：条目列表
+     右：选中条目的详情面板
+
+   ## 坐标系：第三套，这是刻意的
+
+   挂在 document.body 上、position: fixed、全部用 vw/vh。
+   游戏页的 #stage 是 1920x1080 等比缩放（非 16:9 留黑边），暂停菜单不该跟着缩进黑边；
+   主菜单页的立绘按视口像素定位，用视口坐标才和它对得上。
+   UWB 里 CEF 的视口恒为 1920x1080，所以 vw/vh 就是设计值本身。
+
+   ## 层次
+
+   z-index 9000 —— 在两边所有界面之上，但**在立绘之下**（立绘 9997）。
+   打开时她还在，只是被冷白的光洗过一遍。立绘那层是 pointer-events: none，挡不住点击。
+   ============================================================ */
+
+#animus {
+  /* ============================================================
+     主题：**四套，一套就是客厅的一种光**
+     ------------------------------------------------------------
+     组件规则里一个颜色都没有 —— 换主题只动下面四块。
+
+       午后   data-theme="noon"     光安静地落在地板上
+       傍晚   data-theme="evening"  夕阳染色的餐桌
+       夜     data-theme="lamp"     只开一盏小灯          ← 默认
+       雨夜   data-theme="rain"     月色冷淡
+
+     这不是"四个好看的配色"，是**场景需求表里那四张客厅**。
+     那张表的高优先背景前三张是「客厅-午后晴 / 客厅-傍晚暖光 /
+     客厅-夜小灯」，加上「客厅-雨夜」正好四张；表里还写着
+     "客厅建议至少做 5 套光照变体"。所以主题就是客厅的光照变体。
+
+     而且它们**正好切在故事的四段光上** —— 换主题等于换一幕的光：
+
+       午后   1-1 寂静的独居生活 / 1-3 借宿协商 / 2-3 午后下午茶
+              5A-3 与 5B-3 两个结局的收束（"同样的客厅，安静但不空"）
+       傍晚   1-4 第一顿正式晚餐 / 4-2 最后的普通晚餐
+       夜     2-4 深夜煮面 / 3-1 初夏夜宵 / 3-2~3-4 Yui 的直播
+       雨夜   4-1 召回（雷雨将至）/ 4-3 选择前夜 / 5A 与 5B 的高潮
+
+     序章和两个结局收在同一个午后 —— 这也是脚本自己写的呼应：
+     5A-3 与 5B-3 的【BG】都是"午后 / 晴"。
+
+     ## 位置信号永远是她身上的东西，不是屋子的颜色
+
+     场景需求表 S02 对她的造型只写了一行：
+       **「白色长裙、长发、半透明羽翼、头顶淡金色光环」**。
+     所以每套主题里那个"你在这里"的颜色，都从她身上取：
+
+       光环的金 · 半透明羽翼的白 · 发梢的淡雪青
+
+     挑哪一个只有一个判据：**在这间屋子的光里，哪一样最跳得出来。**
+
+       午后   金 → 白天那圈金不发光，得压深成琥珀才读得出（浅金糊在墙上）
+       傍晚   羽翼的白 → 满屋都是橙的，只有她是冷的
+       夜     金 → 满屋黑，那盏"小灯"就是她的光环：她说"我在这里"
+       雨夜   月下的冷白 → 冷到底；金退成极小的一行记录号（那是她还没走）
+
+     AC 那边用砖红标"当前"，那是 *系统在标记你*；这四个是 *她在看着你*。
+     屋子换了四间，说话的一直是同一个人。
+
+     ## 组件的颜色分布（改主题时对着这张表看）
+
+       空间层  --ax-bg-lift/mid/deep（渐变三档）、--ax-bg-glow（那一团光）、
+               --ax-grid / --ax-dot / --ax-vignette、
+               --ax-surface / --ax-surface-lit、--ax-tile / --ax-tile-lit
+       内容层  --ax-ink / -soft / -faint、--ax-line / -soft、
+               --ax-cyan / -wash（数据）、
+               --ax-mark / -lit / -wash / -ink（位置信号）
+       画布    --ax-ink-rgb / --ax-mark-rgb / --ax-cyan-rgb
+               （canvas 拼不出 rgb() 字符串，只能要裸三元组）
+       四处"必须每套各给一个"的：
+               --ax-tile-shadow   瓦片下缘的厚度
+               --ax-flash / -rgb  比周围更亮的那一层（亮底上要反过来变暗）
+               --ax-flash-blend   横向扫描光的混合模式（亮底上 screen 等于没有）
+               --ax-gold          滑杆悬停的暖色强调
+
+     ## 结构属性**不许**写进主题块
+
+     `position` / `z-index` / `opacity` / `visibility` / `pointer-events` /
+     过渡 / 字体这些**必须留在下面这一段基础块里**。
+
+     它们原来被塞在"暮蓝"那一块里（大概是加第三套主题时顺手追加到了
+     主题段落的末尾），后果是"这些行为只有暮蓝主题才有"：
+
+       · 只有暮蓝是 `position: fixed`。另外三套退化成 `static`，
+         绝对定位的 `.ax-backdrop` 只好去找最近的一个**定位祖先**
+         （游戏页那个是 `#stage`），于是暂停菜单又被缩进 16:9 的信箱里
+         —— 而"用视口坐标、跳出 #stage"正是第三套坐标系存在的全部理由。
+       · 更糟的是只有暮蓝有 `opacity: 0` + `pointer-events: none`：
+         另外三套**关不掉**。按 Esc 继续游戏之后暂停菜单还留在屏幕上，
+         还继续吃掉鼠标点击（真发生过，截图里能看到它压着对话框）。
+
+     教训：**一个属性写进主题块，就等于"这个行为只在这一套主题下存在"。**
+     加主题的时候要往那个 block 里追加的是变量，不是结构。
+     ============================================================ */
+  /* ============================================================
+     **这个块只管结构，变量写在下面那个块里。**
+
+     这个文件里有两个选择器组都写着
+     `#animus, #animus[data-theme="lamp"]`：这一个装的是**结构**
+     （fixed / inset / z-index / 关闭时的透明与不可点），
+     下面那一个装的才是**夜那一套的变量**。
+     往这里塞变量的话，工具就查不出来"夜这套一共几个变量"了
+     （checkvars 只会读到一个块），而且同一个值写在两处早晚会漂。
+     ============================================================ */
+
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+
+  /* 关着的时候：看不见、也不挡点击。
+     注意这两条**必须在基础块里** —— 见上面那段。 */
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.24s ease, visibility 0s linear 0.24s;
+
+  font-family: inherit;
+  color: var(--ax-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+#animus.open {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.24s ease, visibility 0s;
+}
+
+/* ============================================================
+   主题一：午后 · 晴 —— **光线安静地落在地板上**
+   ------------------------------------------------------------
+   剧本 1-1【场景】客厅 / 午后 / 晴
+          【BG】大客厅，大片落地窗，光线安静地落在地板上
+   同一束光还用在 1-3 借宿协商、2-3 午后下午茶，以及两个结局的收束
+   （5B-3 的原话是「同样的客厅，安静但不空」）。
+
+   这是"她来之前"和"她留下之后"共用的那一束光 —— 故事从这里开始，
+   也从这里结束。所以它必须是**亮而安静**的：落地窗的白、木地板被晒暖的米，
+   没有一处高饱和。1-1 里那句"整体偏整洁宽敞略显冷清"就靠这个。
+
+   位置信号 = **她光环的金压深成琥珀**。白天那圈金不发光，但它是这间屋子里
+   唯一比米黄更重的暖色 —— 压深之后正好读得出；#F2D06B 那么浅会糊在墙面上。
+   ============================================================ */
+/* ⚠ 这四个主题块的选择器上挂着 `:root[data-theme=…]` 那一份，是**给页面级的元素用的**
+   （`#handoff-veil` 那层交接的光在 `#animus` 外面，读不到这里的变量）。
+   settings-module.js 切换主题时会同时在 `#animus` 和 `<html>` 上写 data-theme，
+   两份必须一起改，否则交接那层光会退回旧配色。 */
+#animus[data-theme="noon"],
+:root[data-theme="noon"] {
+  /* ---- 空间层 ---- */
+  --ax-bg-lift: #FCF7EE;      /* 落地窗那一片白 */
+  --ax-bg-mid: #F6EEE0;
+  --ax-bg-deep: #EADFCB;      /* 木地板被晒暖的米黄 */
+  --ax-bg-glow: rgba(255, 236, 196, 0.92);
+  --ax-grid: rgba(150, 116, 84, 0.10);
+  --ax-dot: rgba(150, 116, 84, 0.20);
+  --ax-vignette: rgba(150, 116, 84, 0.14);
+  --ax-surface: rgba(255, 253, 247, 0.80);
+  --ax-surface-lit: #FFFDF6;
+  --ax-tile: linear-gradient(160deg, #FFFFFF 0%, #E8D8BC 100%);
+  --ax-tile-lit: linear-gradient(160deg, #FFFFFF 0%, #D8C09E 100%);
+
+  /* ---- 内容层 ---- */
+  /* 下面这几个 alpha 不是随手给的：亮底上"淡"字掉得特别快。
+     0.62 / 0.36 的时候「次要」那档只有 3.4:1、最小那档 1.9:1 ——
+     在这间亮屋子里等于看不见。现在四套主题都实测过（见 README 那张表）。 */
+  --ax-ink: #4A3A2A;          /* 木褐。**午后没有真正的黑** */
+  --ax-ink-soft: rgba(74, 58, 42, 0.86);
+  --ax-ink-faint: rgba(74, 58, 42, 0.66);
+  --ax-line: rgba(150, 116, 84, 0.26);
+  --ax-line-soft: rgba(150, 116, 84, 0.11);
+
+  /* 数据色：她的淡雪青**压深**。冷色落在暖屋里，这是唯一的"非人"颜色。 */
+  --ax-cyan: #4E5F9C;
+  --ax-cyan-wash: rgba(78, 95, 156, 0.16);
+
+  /* 位置信号：光环的金压深（见上面那段） */
+  --ax-mark: #9A5B12;
+  --ax-mark-lit: #B87424;
+  --ax-mark-wash: rgba(154, 91, 18, 0.18);
+  --ax-mark-ink: #FFFDF6;
+
+  --ax-tile-shadow: rgba(150, 116, 84, 0.34);
+  --ax-flash: #8A6247;        /* 亮底上"高光"要反过来变成暗色 */
+  --ax-flash-rgb: 138,98,71;
+  --ax-flash-blend: multiply; /* 亮底上 screen 等于没有 */
+  /* 美术素材的滤镜。**必须每套主题各给一个** —— 素材线色是死的，
+     深色线在夜/雨夜上看不见、浅色线在午后上白压白。
+     所以素材只画一套（建议深色线），另外三套用 filter 翻过来。 */
+  --ax-gold: #C08F2E;
+
+  --ax-ink-rgb: 74,58,42;
+  --ax-mark-rgb: 154,91,18;
+  --ax-cyan-rgb: 78,95,156;
+}
+
+/* ============================================================
+   主题二：傍晚 · 暖光 —— **夕阳染色的餐桌**
+   ------------------------------------------------------------
+   剧本 1-4【场景】餐厅 / 傍晚    【BG】夕阳染色的餐桌
+   4-2【场景】厨房 / 傍晚过渡至夜  【BG】天色压暗，室内亮灯，锅中热气明显
+   1-4 是第一顿正式晚餐，4-2 是最后一顿普通晚餐 —— **同一个傍晚，一头一尾。**
+
+   屋子是一半橙一半已经暗下去的：起头（背光那半边）已经黑到 #2A1409，
+   收尾（窗子那一片）是烧起来的 #7A3C14。所以它是四套里唯一一套
+   **饱和的暖色**，和"夜·小灯"那种发黑的暖褐不一样：
+   一个是被太阳照的，一个是被一盏灯照的。
+
+   位置信号 = **她羽翼的白**（半透明羽翼那一层，微冷）。
+   满屋都是橙的时候，只有她是冷的 —— 这是这一套唯一的理由，
+   也正好是这一场戏的意思。
+   ============================================================ */
+#animus[data-theme="evening"],
+:root[data-theme="evening"] {
+  /* ---- 空间层 ---- */
+  --ax-bg-lift: #2A1409;      /* 背光的那半边，已经暗下去了 */
+  --ax-bg-mid: #4A2410;       /* 夕阳染色的墙面 */
+  --ax-bg-deep: #7A3C14;      /* 窗子那一片橙 */
+  --ax-bg-glow: rgba(255, 150, 60, 0.30);
+  --ax-grid: rgba(255, 240, 220, 0.06);
+  --ax-dot: rgba(255, 240, 220, 0.15);
+  --ax-vignette: rgba(28, 10, 2, 0.50);
+  --ax-surface: rgba(255, 240, 220, 0.10);
+  --ax-surface-lit: rgba(255, 240, 220, 0.20);
+  --ax-tile: linear-gradient(160deg, #FFE0B4 0%, #B06C30 100%);
+  --ax-tile-lit: linear-gradient(160deg, #FFEFD2 0%, #C8823C 100%);
+
+  /* ---- 内容层 ---- */
+  --ax-ink: #FFEBD2;          /* 被夕阳照暖的白。比她那种暖白更橙一档 */
+  --ax-ink-soft: rgba(255, 235, 210, 0.68);
+  --ax-ink-faint: rgba(255, 235, 210, 0.42);
+  --ax-line: rgba(255, 235, 210, 0.20);
+  --ax-line-soft: rgba(255, 235, 210, 0.09);
+
+  /* 数据色：**光环的金**。橙底上金不算跳，但它够亮，当小字读得出来；
+     真正的位置信号让给下面的羽翼白，两者色相拉开。 */
+  --ax-cyan: #F2D06B;
+  --ax-cyan-wash: rgba(242, 208, 107, 0.16);
+
+  /* 位置信号：她的羽翼 —— 半透明的一层白，微微偏冷 */
+  --ax-mark: #EAF2FF;
+  --ax-mark-lit: #FFFFFF;
+  --ax-mark-wash: rgba(234, 242, 255, 0.20);
+  --ax-mark-ink: #2A1409;
+
+  --ax-tile-shadow: rgba(28, 10, 2, 0.55);
+  --ax-flash: #FFEBD2;
+  --ax-flash-rgb: 255,235,210;
+  --ax-flash-blend: screen;
+  --ax-gold: #FFD79A;
+  /* 美术素材（天使那张图）的滤镜。
+     **它必须每套主题各给一个**，理由和 --ax-flash 一样：
+     素材是一张带透明通道的 PNG，线色是死的。
+     深色线在亮底主题（午后）上没问题，在夜/雨夜上就看不见；
+     反过来浅色线在午后上白压白。
+     所以素材只画一套（建议深色线），剩下三套用 filter 翻过来。 */
+
+
+  --ax-ink-rgb: 255,235,210;
+  --ax-mark-rgb: 234,242,255;
+  --ax-cyan-rgb: 242,208,107;
+}
+
+/* ============================================================
+   主题三：夜 · 小灯 —— **只开一盏小灯**
+   ------------------------------------------------------------
+   剧本 2-4【场景】厨房 / 深夜  【BG】只开一盏小灯的客厅与厨房
+   3-1【BG】夜色中的客厅，茶几上有夜宵，**电视微亮**
+   3-4（直播已关）"电视熄灭后的昏暗客厅、小灯单点照明"
+
+   这一套是"她是你房间里唯一的亮光"：底几乎全黑，只有一处暖光源 ——
+   而 `--ax-bg-glow` 用的就是**她光环的金**。这不是装饰，是这句话本身。
+
+   位置信号 = **光环的金**。满屋黑，那盏"小灯"就是她。
+
+   **它不是默认那套**（出厂默认是「午后」，见 settings-module.js 的
+   DEFAULT_THEME）。下面这个块不带 data-theme 也生效，那只是给
+   "JS 还没跑起来"的一瞬间兜底 —— 界面一加载就会写上 data-theme。
+   ============================================================ */
+#animus,
+#animus[data-theme="lamp"],
+:root[data-theme="lamp"] {
+  /* ---- 空间层 ---- */
+  --ax-bg-lift: #1C120C;      /* 起头（最深） */
+  --ax-bg-mid: #2A1B13;
+  --ax-bg-deep: #3E2820;      /* 收尾 */
+  --ax-bg-glow: rgba(242, 208, 107, 0.18);   /* 那一盏小灯 = 她的光环 */
+  --ax-grid: rgba(255, 247, 234, 0.055);
+  --ax-dot: rgba(255, 247, 234, 0.15);
+  --ax-vignette: rgba(8, 4, 2, 0.48);
+  --ax-surface: rgba(255, 247, 234, 0.10);
+  --ax-surface-lit: rgba(255, 247, 234, 0.20);
+  --ax-tile: linear-gradient(160deg, #FFF7EA 0%, #C0A98C 100%);
+  --ax-tile-lit: linear-gradient(160deg, #FFFFFF 0%, #E6D2B4 100%);
+
+  /* ---- 内容层 ---- */
+  --ax-ink: #FFF7EA;          /* 暖白，不是纯白 */
+  --ax-ink-soft: rgba(255, 247, 234, 0.66);
+  --ax-ink-faint: rgba(255, 247, 234, 0.40);
+  --ax-line: rgba(255, 247, 234, 0.20);
+  --ax-line-soft: rgba(255, 247, 234, 0.09);
+
+  /* 数据色：**她身上的淡雪青**。REC 号、对焦线、空间连线都走它 ——
+     冷色的数据压在她那间暖房里，是这套配色里唯一的"非人"颜色。 */
+  --ax-cyan: #A9B8E8;
+  --ax-cyan-wash: rgba(169, 184, 232, 0.16);
+
+  /* 位置信号：光环的金 */
+  --ax-mark: #F2D06B;
+  --ax-mark-lit: #F8E29B;
+  --ax-mark-wash: rgba(242, 208, 107, 0.22);
+  --ax-mark-ink: #2A1B13;     /* 金上压深字，白字在浅金上看不清 */
+
+  --ax-tile-shadow: rgba(42, 27, 19, 0.55);
+  --ax-flash: #FFF7EA;
+  --ax-flash-rgb: 255,247,234;
+  --ax-flash-blend: screen;
+  --ax-gold: #F2D06B;
+  /* 美术素材（天使那张图）的滤镜。
+     **它必须每套主题各给一个**，理由和 --ax-flash 一样：
+     素材是一张带透明通道的 PNG，线色是死的。
+     深色线在亮底主题（午后）上没问题，在夜/雨夜上就看不见；
+     反过来浅色线在午后上白压白。
+     所以素材只画一套（建议深色线），剩下三套用 filter 翻过来。 */
+
+
+  --ax-ink-rgb: 255,247,234;
+  --ax-mark-rgb: 242,208,107;
+  --ax-cyan-rgb: 169,184,232;
+}
+
+/* ============================================================
+   主题四：雨夜 · 冷光 —— **月色冷淡**
+   ------------------------------------------------------------
+   剧本 4-3【场景】客厅 / 夜 / 雨声不止（玩家决策前：记忆回廊）
+   4-1【BG】天色压低，屋内昏暗，阳台外风大   （召回通知，雷雨将至）
+   3-5【场景】阳台 / 凌晨
+       【BG】城市夜景，风稍大，**月色冷淡**  （阳台坦白）
+   5A-1 / 5B-1 两个结局的前夜都在这里。
+
+   它和"夜·小灯"是两套不同的暗：那一套是**暖褐的近黑**（屋里有一盏灯），
+   这一套是**冷灰蓝的近黑**（屋里没有灯，光是从窗外来的）。所以连数据流的收尾色
+   （`--ax-flash-rgb`）都从暖白换成冷白 —— 雨夜里不存在暖白这种东西。
+
+   位置信号 = **月光落在羽翼上的那一层冷白**。
+   而且这里和别的主题**反过来**：金退到数据色，只剩极小的一行记录号。
+   整间屋子都冷到底，那一行金是唯一还暖着的东西 —— 那是她还没走。
+   S14 的要求原话是"需要**冷**、静、真诚"，这一套就是那个冷。
+   ============================================================ */
+#animus[data-theme="rain"],
+:root[data-theme="rain"] {
+  /* ---- 空间层 ---- */
+  --ax-bg-lift: #0C1016;      /* 屋角，最深 */
+  --ax-bg-mid: #161E28;
+  --ax-bg-deep: #24303C;      /* 窗子那一片冷光 */
+  --ax-bg-glow: rgba(169, 184, 232, 0.14);   /* 月光是冷的，不是她的金 */
+  --ax-grid: rgba(214, 228, 244, 0.055);
+  --ax-dot: rgba(214, 228, 244, 0.14);
+  --ax-vignette: rgba(2, 6, 12, 0.55);       /* 比夜里更闷：雨把光都吃了 */
+  --ax-surface: rgba(214, 228, 244, 0.10);
+  --ax-surface-lit: rgba(214, 228, 244, 0.19);
+  --ax-tile: linear-gradient(160deg, #E4EDF8 0%, #8C9AAE 100%);
+  --ax-tile-lit: linear-gradient(160deg, #F2F7FD 0%, #A6B4C8 100%);
+
+  /* ---- 内容层 ---- */
+  --ax-ink: #EAF1F8;          /* 月光白，带一点冷 */
+  --ax-ink-soft: rgba(234, 241, 248, 0.64);
+  --ax-ink-faint: rgba(234, 241, 248, 0.40);
+  --ax-line: rgba(234, 241, 248, 0.18);
+  --ax-line-soft: rgba(234, 241, 248, 0.08);
+
+  /* 数据色：**金**（见上面那段 —— 这一套和其它三套是反的） */
+  --ax-cyan: #E8C97A;
+  --ax-cyan-wash: rgba(232, 201, 122, 0.14);
+
+  /* 位置信号：月光下的羽翼 */
+  --ax-mark: #B9C8EE;
+  --ax-mark-lit: #D4DEF7;
+  --ax-mark-wash: rgba(185, 200, 238, 0.22);
+  --ax-mark-ink: #0C1016;
+
+  --ax-tile-shadow: rgba(2, 6, 14, 0.6);
+  --ax-flash: #EAF1F8;
+  --ax-flash-rgb: 234,241,248;
+  --ax-flash-blend: screen;
+  --ax-gold: #E8C97A;
+  /* 美术素材（天使那张图）的滤镜。
+     **它必须每套主题各给一个**，理由和 --ax-flash 一样：
+     素材是一张带透明通道的 PNG，线色是死的。
+     深色线在亮底主题（午后）上没问题，在夜/雨夜上就看不见；
+     反过来浅色线在午后上白压白。
+     所以素材只画一套（建议深色线），剩下三套用 filter 翻过来。 */
+
+
+  --ax-ink-rgb: 234,241,248;
+  --ax-mark-rgb: 185,200,238;
+  --ax-cyan-rgb: 232,201,122;
+}
+
+/* ============================================================
+   底：无菌白 + 网格 + 数据流 + 暗角
+   ============================================================ */
+#animus .ax-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 70% at 78% 46%,
+      var(--ax-bg-glow) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(158deg, var(--ax-bg-lift) 0%, var(--ax-bg-mid) 38%, var(--ax-bg-deep) 100%);
+}
+
+/* 网格：整个系统的"空间感"全靠它 */
+#animus .ax-grid {
+  position: absolute;
+  inset: -20%;
+  background-image:
+    linear-gradient(var(--ax-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ax-grid) 1px, transparent 1px);
+  background-size: 4.5vw 4.5vw;
+  -webkit-mask-image: radial-gradient(120% 95% at 38% 50%,
+    rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.25) 62%, rgba(0, 0, 0, 0) 88%);
+  mask-image: radial-gradient(120% 95% at 38% 50%,
+    rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.25) 62%, rgba(0, 0, 0, 0) 88%);
+  animation: ax-grid-drift 54s linear infinite;
+}
+
+@keyframes ax-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(4.5vw, 4.5vw, 0); }
+}
+
+
+
+/* 点阵：参考图里数据库/服装那几页的底纹，很淡的一层网点 */
+#animus .ax-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--ax-dot) 1px, transparent 1px);
+  background-size: 0.58vw 0.58vw;
+  -webkit-mask-image: radial-gradient(58% 62% at 42% 50%,
+    rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 80%);
+  mask-image: radial-gradient(58% 62% at 42% 50%,
+    rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 80%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* 数据流：几条极细的竖线往下淌。
+   纯 CSS，没有 canvas —— 它是背景纹理，不需要精度，只需要"在动"。
+
+   （中间换过一次：试过把竖线改成"浮尘"，理由是光里看得见灰。
+     那一版连窗光一起撤了 —— 光都没了，尘就没有立脚点。）
+   颜色走 --ax-cyan-rgb + --ax-flash-rgb：机器在灌数据，用的是
+   "数据色"和"高光色"这一对，和这一层"机器在跑"的身份对得上。 */
+#animus .ax-stream {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.5;
+}
+
+#animus .ax-stream i {
+  position: absolute;
+  top: -40%;
+  width: 1px;
+  height: 40%;
+  background: linear-gradient(180deg,
+    rgba(var(--ax-cyan-rgb), 0) 0%,
+    rgba(var(--ax-cyan-rgb), 0.30) 55%,
+    rgba(var(--ax-cyan-rgb), 0.75) 92%,
+    rgba(var(--ax-flash-rgb), 0) 100%);
+  animation: ax-stream-fall linear infinite;
+}
+
+@keyframes ax-stream-fall {
+  from { transform: translateY(0); }
+  to   { transform: translateY(360%); }
+}
+
+/* 暗角 */
+#animus .ax-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(135% 105% at 42% 52%,
+    rgba(255, 255, 255, 0) 46%, var(--ax-vignette) 100%);
+}
+
+/* ============================================================
+   角标：四个角的直角细线 —— 那套界面最认得出来的记号
+   ============================================================ */
+#animus .ax-corner {
+  position: absolute;
+  width: 2.2vw;
+  height: 2.2vw;
+  border: 1px solid var(--ax-line);
+  pointer-events: none;
+}
+
+#animus .ax-corner.tl { top: 3.2vh; left: 2.2vw; border-right: 0; border-bottom: 0; }
+#animus .ax-corner.tr { top: 3.2vh; right: 2.2vw; border-left: 0; border-bottom: 0; }
+#animus .ax-corner.bl { bottom: 3.2vh; left: 2.2vw; border-right: 0; border-top: 0; }
+#animus .ax-corner.br { bottom: 3.2vh; right: 2.2vw; border-left: 0; border-top: 0; }
+
+/* ============================================================
+   标题区（与内容列同一条左对齐轴）
+   ============================================================ */
+#animus .ax-head {
+  position: absolute;
+  left: 27vw;
+  top: 7.5vh;
+  width: 36vw;
+}
+
+#animus .ax-kicker {
+  font-size: clamp(10px, 0.72vw, 15px);
+  letter-spacing: 0.5em;
+  color: var(--ax-cyan);
+  margin-bottom: 1vh;
+}
+
+#animus .ax-title {
+  margin: 0;
+  font-size: clamp(28px, 2.9vw, 58px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: 0.14em;
+  color: var(--ax-ink);
+}
+
+#animus .ax-title-rule {
+  width: 24vw;
+  height: 1px;
+  margin-top: 1.4vh;
+  background: linear-gradient(90deg, var(--ax-cyan) 0%, rgba(var(--ax-cyan-rgb), 0) 100%);
+}
+
+/* ============================================================
+   同步率读数
+   ------------------------------------------------------------
+   Animus 的招牌。它一直在报数，而且**数字在走** —— 静止的数字是装饰，
+   走动的数字才让人相信这台机器真的在跑。
+   ============================================================ */
+#animus .ax-sync {
+  position: absolute;
+  right: 6vw;
+  top: 7.5vh;
+  width: 20vw;
+  text-align: right;
+}
+
+#animus .ax-sync-label {
+  font-size: clamp(10px, 0.72vw, 15px);
+  letter-spacing: 0.44em;
+  color: var(--ax-ink-faint);
+}
+
+#animus .ax-sync-value {
+  margin-top: 0.6vh;
+  font-size: clamp(30px, 3vw, 60px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ax-ink);
+}
+
+#animus .ax-sync-value span {
+  font-size: 0.42em;
+  margin-left: 0.3vw;
+  color: var(--ax-ink-faint);
+}
+
+/* 分段条：一格一格的，比连续进度条更像仪表 */
+#animus .ax-sync-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.16vw;
+  margin-top: 1.1vh;
+}
+
+#animus .ax-sync-bar i {
+  width: 0.52vw;
+  height: 0.62vh;
+  min-height: 5px;
+  background: var(--ax-line);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+#animus .ax-sync-bar i.on {
+  background: rgba(var(--ax-ink-rgb), 0.42);
+}
+
+/* 最后点亮的那一格发一下光 —— 让"刚刚同步到这里"看得见 */
+#animus .ax-sync-bar i.tip {
+  background: var(--ax-mark);
+  box-shadow: 0 0 8px rgba(var(--ax-mark-rgb), 0.6);
+}
+
+#animus .ax-sync-rows {
+  margin-top: 2.4vh;
+}
+
+#animus .ax-status-row {
+  font-size: clamp(10px, 0.72vw, 15px);
+  letter-spacing: 0.22em;
+  color: var(--ax-ink-faint);
+  line-height: 2;
+}
+
+#animus .ax-status-row b {
+  font-weight: 500;
+  color: var(--ax-ink-soft);
+}
+
+/* ============================================================
+   两级结构
+   ------------------------------------------------------------
+   第 0 层「Animus 桌面」：.ax-desktop（导轨 + 空间连线 + 预览面板）
+   第 1 层「子页」：.ax-body
+
+   **这是整套界面的骨架。** 参考图里这两层差别极大 ——
+   桌面是一摞瓦片 + 右侧预览，章节页是一条横贯全屏的绳。
+   它们不是同一个界面的两种内容，是两个界面。
+
+   进入 / 返回都靠镜头：进去推近，出来拉回（见 animus.js 的 cam.enterAt）。
+   ============================================================ */
+#animus .ax-desktop {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.42s ease, transform 0.5s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+#animus.level-1 .ax-desktop {
+  opacity: 0;
+  pointer-events: none;
+  /* 桌面"被推开门之后留在身后"：向左缩出去一点，不是原地消失 */
+  transform: translate3d(-2.4vw, 0, 0) scale(1.04);
+}
+
+/* 子页：不在第 1 层时整块不参与布局与点击 */
+#animus:not(.level-1) .ax-body {
+  display: none;
+}
+
+#animus.level-1 .ax-body {
+  animation: ax-enter-page 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+
+/* 子页从左边推进来 —— 空间连线是从左边指过来的，
+   动效的方向要和空间的逻辑一致，否则两个信号互相拆台。 */
+@keyframes ax-enter-page {
+  from { opacity: 0; transform: translateX(-2.6vw) scale(0.985); filter: blur(3px); }
+  to   { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+
+/* ============================================================
+   第 0 层右侧的预览面板
+   ------------------------------------------------------------
+   参考图里那一栏是「一张图 + 一段说明 + 目标」。我们没有图，
+   用**读数**代替 —— 它同时还是"这一页有什么可调"的预告。
+   ============================================================ */
+#animus .ax-preview {
+  position: absolute;
+  /* 27vw = 空间连线的终点（connector 从 25vw 起、2vw 宽）。
+     面板的左边框正好接上那根线，"链 → 线 → 面板"是一条通到底的。 */
+  left: 27vw;
+  top: 22vh;
+  width: 32vw;
+  padding-left: 2vw;
+  border-left: 1px solid var(--ax-line);
+}
+
+#animus .ax-preview-code {
+  font-size: clamp(10px, 0.72vw, 15px);
+  letter-spacing: 0.34em;
+  color: var(--ax-cyan);
+  margin-bottom: 1vh;
+}
+
+#animus .ax-preview-title {
+  font-size: clamp(17px, 1.5vw, 31px);
+  letter-spacing: 0.1em;
+  color: var(--ax-ink);
+  margin-bottom: 1.2vh;
+  padding-bottom: 1.2vh;
+  border-bottom: 1px solid var(--ax-line);
+}
+
+#animus .ax-preview-desc {
+  font-size: clamp(11px, 0.82vw, 17px);
+  line-height: 1.95;
+  letter-spacing: 0.04em;
+  color: var(--ax-ink-soft);
+  margin-bottom: 1.8vh;
+}
+
+#animus .ax-preview-rows {
+  margin-bottom: 2.4vh;
+}
+
+#animus .ax-preview-enter {
+  font-size: clamp(10px, 0.72vw, 15px);
+  letter-spacing: 0.2em;
+  color: var(--ax-ink-faint);
+}
+
+/* 进入提示前那个会呼吸的小方块 —— 静止的提示是装饰，
+   动一下才像"这里可以按"。 */
+#animus .ax-preview-enter::before {
+  content: "";
+  display: inline-block;
+  width: 0.5vw;
+  height: 0.5vw;
+  margin-right: 0.6vw;
+  background: var(--ax-mark);
+  animation: ax-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes ax-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+/* ============================================================
+   章节导航：一个固定的空间 + 一台会走的镜头
+   ------------------------------------------------------------
+   这一版的核心不是"绳画得更好看"，而是**改成了相机模型**：
+
+     · 绳是一个**比视口更大的固定场景**（.ax-rail-cam，上下各多出 32%）
+     · .ax-rail 是**取景框**（overflow: hidden），本身不动
+     · 切子页 = 相机沿链滑到那个节点，把它送到**对焦线**上，并轻微推近再收回
+     · 对焦线（.ax-focus-line）是取景框的东西，所以它**不跟着相机走**
+     · 一根静态连线（.ax-connector）从对焦线横穿到内容列 ——
+       这一根线就是"链和面板在同一个空间里"的全部证据
+
+   为什么必须这样：把每条子页做成一屏单独的界面，读起来就是"幻灯片"；
+   相机模型读起来是"你在这台机器里移动"。AC 的暂停菜单是后者。
+
+   节点的横坐标仍然由链的相位算出来（见 animus.js 的 nodeXAt），
+   所以它是真的骑在链上；相机移动时它跟着链一起走。
+   ============================================================ */
+#animus .ax-rail {
+  position: absolute;
+  left: 3vw;
+  top: 20vh;
+  bottom: 18vh;
+  width: 22vw;
+  /* 取景框：相机把场景推出去的部分要裁掉 */
+  overflow: hidden;
+}
+
+/* 场景本体。上下各多出 32%，所以相机可以滑 ±32% 而不会露出链的断头。
+   只有 transform 会被 JS 每帧改写，所以这里不写 transition —— 会打架。 */
+#animus .ax-rail-cam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 上下各多出 15% —— 相机最多滑这么多。
+     **这个数字是唯一的一份**，JS 不再自己乘一遍（见 camHeight 的注释）。
+     CSS 和 CFG.overscan 各写一份必然会漂移，而且漂了看不出来。 */
+  top: -15%;
+  bottom: -15%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+#animus .ax-rail-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 对焦线：取景框正中的那条。相机把选中的节点送到这里。
+   它在取景框里、不在场景里 —— 场景在动，它不动。 */
+#animus .ax-focus-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  margin-top: -0.5px;
+  background: linear-gradient(90deg,
+    rgba(var(--ax-mark-rgb), 0) 0%,
+    rgba(var(--ax-mark-rgb), 0.65) 22%,
+    rgba(var(--ax-mark-rgb), 0.14) 100%);
+  pointer-events: none;
+}
+
+/* 两端的直角小括号：镜头对焦框的记号 */
+#animus .ax-focus-line::before,
+#animus .ax-focus-line::after {
+  content: "";
+  position: absolute;
+  top: -0.7vh;
+  width: 0.5vw;
+  height: 1.4vh;
+  border: 1px solid rgba(var(--ax-mark-rgb), 0.65);
+}
+
+#animus .ax-focus-line::before { left: 0; border-right: 0; }
+#animus .ax-focus-line::after { right: 0; border-left: 0; }
+
+/* 空间连线：从对焦线一直连到内容列的左边缘。
+   静态的 —— 它是这个空间的一部分，不是切换动效。
+   top 和导轨的中心必须一致：导轨 top 20vh / bottom 18vh。 */
+#animus .ax-connector {
+  position: absolute;
+  left: 25vw;
+  width: 2vw;
+  top: calc(20vh + (100vh - 20vh - 18vh) / 2);
+  height: 1px;
+  background: linear-gradient(90deg,
+    rgba(var(--ax-mark-rgb), 0.65) 0%,
+    rgba(var(--ax-mark-rgb), 0.18) 100%);
+  pointer-events: none;
+}
+
+#animus .ax-connector::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  background: rgba(var(--ax-mark-rgb), 0.7);
+}
+
+/* ============================================================
+   空间：铺满全屏的一层淡绳影
+   ------------------------------------------------------------
+   "无论你在哪个子页面，背景里总能看到绳的局部在缓慢摆动" ——
+   这一层就是那句话。它比导轨那条大得多、淡得多，画在所有内容**下面**。
+   有了它，四个子页读起来才像"同一个空间里的四个机位"。
+
+   纵向遮罩是必须的：不遮的话它会横穿标题和设置行，文字立刻读不清。
+   现在它在**上下两条空白带**里最实、穿过内容时压到几乎看不见 ——
+   空的地方它负责"空间感"，有字的地方它让路。
+   ============================================================ */
+#animus .ax-space {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0.5;
+  pointer-events: none;
+
+  -webkit-mask-image: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.95) 0%,
+    rgba(0, 0, 0, 0.30) 26%,
+    rgba(0, 0, 0, 0.18) 46%,
+    rgba(0, 0, 0, 0.18) 66%,
+    rgba(0, 0, 0, 0.45) 82%,
+    rgba(0, 0, 0, 0.95) 100%);
+  mask-image: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.95) 0%,
+    rgba(0, 0, 0, 0.30) 26%,
+    rgba(0, 0, 0, 0.18) 46%,
+    rgba(0, 0, 0, 0.18) 66%,
+    rgba(0, 0, 0, 0.45) 82%,
+    rgba(0, 0, 0, 0.95) 100%);
+}
+
+/* 一行 = 一个节点。整行都是热区（点哪儿都能选中），
+   里面的点/引线/文字各自定位。 */
+#animus .ax-node {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 行高由 JS 按格距写死（见 layoutNodes）—— 相邻两格必须严丝合缝。
+     中间留空档的话鼠标滑过去高亮会「掉一下」，手感上就是卡。
+     这里的值只是 JS 还没跑起来时的兜底。 */
+  height: 3.6vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  /* 位置由 JS 每帧写 transform，所以这里**不能**写 transition: transform
+     —— 那会和逐帧写进去的值打架，变成"慢半拍地抖"。只过渡颜色。 */
+  transition: color 0.18s ease;
+  will-change: transform;
+}
+
+/* 骑在链上的那块**方形叠片**。横坐标由 JS 写进来。
+   ------------------------------------------------------------
+   参考图里每个功能是一块**方瓦片**（略带厚度，像一摞码起来的板），
+   不是一个小圆点。选中的那块整块变成位置信号色（参考图里是砖红，
+   我们是她光环的金）。 */
+#animus .ax-node-tile {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1.15vw;
+  height: 1.15vw;
+  margin: -0.575vw 0 0 -0.575vw;
+  background: var(--ax-tile);
+  border: 1px solid var(--ax-ink-faint);
+  /* 下缘那一条就是"厚度" —— 没有它，方块看起来是贴在屏幕上的色块 */
+  box-shadow: 0 2px 0 rgba(var(--ax-ink-rgb), 0.22);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* 引线：从链上的方块连到标签。长度每帧变（因为方块在动） */
+#animus .ax-node-lead {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 1px;
+  background: rgba(var(--ax-ink-rgb), 0.28);
+  transition: background 0.2s ease;
+}
+
+#animus .ax-node-text {
+  position: absolute;
+  left: 13.2vw;              /* = 导轨宽 22vw 的 60% */
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  padding: 0.5vh 1.1vw 0.5vh 0.7vw;
+  font-size: clamp(13px, 1.02vw, 21px);
+  letter-spacing: 0.1em;
+  color: var(--ax-ink-soft);
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+#animus .ax-node-no {
+  display: inline-block;
+  min-width: 1.7vw;
+  margin-right: 0.5vw;
+  font-variant-numeric: tabular-nums;
+  color: var(--ax-ink-faint);
+  transition: color 0.18s ease;
+}
+
+/* ---- 悬停 ---- */
+#animus .ax-node:hover .ax-node-text,
+#animus .ax-node:focus-visible .ax-node-text {
+  color: var(--ax-ink);
+}
+
+#animus .ax-node:focus-visible { outline: none; }
+
+#animus .ax-node:hover .ax-node-lead,
+#animus .ax-node:focus-visible .ax-node-lead {
+  background: var(--ax-ink-soft);
+}
+
+#animus .ax-node:hover .ax-node-tile,
+#animus .ax-node:focus-visible .ax-node-tile {
+  border-color: var(--ax-ink-soft);
+  background: var(--ax-tile-lit);
+}
+
+/* ---- 当前项：实心位置信号色方块 + 标签后面一条同色横条 ----
+   这条横条是参考图里最醒目的记号：文字压在一条实心块上，字换成压色。
+   它比"改个字的颜色"重得多 —— 也是整屏里唯一能一眼扫到的位置信号。 */
+#animus .ax-node.active .ax-node-text {
+  color: var(--ax-mark-ink);
+  background: linear-gradient(90deg, var(--ax-mark) 0%, var(--ax-mark) 94%, rgba(var(--ax-mark-rgb), 0) 100%);
+}
+
+/* 编号和标签一样压在位置信号色上，所以也得跟着 `--ax-mark-ink` 走。
+   写死白色在奶油主题（mark 是青绿）上还看得见，
+   但暖木主题的浅金上就是白压白 —— 和标签那句是同一个坑。 */
+#animus .ax-node.active .ax-node-no {
+  color: var(--ax-mark-ink);
+  opacity: 0.72;
+}
+
+#animus .ax-node.active .ax-node-tile {
+  background: linear-gradient(160deg, var(--ax-mark-lit) 0%, var(--ax-mark) 100%);
+  border-color: var(--ax-mark);
+  box-shadow: 0 2px 0 var(--ax-tile-shadow), 0 0 0 4px var(--ax-mark-wash);
+}
+
+#animus .ax-node.active .ax-node-lead { background: var(--ax-mark); }
+
+/* ============================================================
+   内容区（三列里的中 + 右）
+   ============================================================ */
+#animus .ax-body {
+  position: absolute;
+  left: 27vw;
+  top: 22vh;
+  bottom: 15vh;
+  width: 35vw;
+  overflow: hidden;
+}
+
+/* 页内三段**按列排**：页首记录条 / 这一页自己的版式块 / 列表+详情。
+   ------------------------------------------------------------
+   **必须用 flex 列，不能让版式块写死 vh。**
+   页盒的高度是 `.ax-body` 给的（top 22vh / bottom 15vh → 680px），而版式块
+   原来是 `height: 30vh` 这样的死值。两者相加不用很久就会超 —— 「显示」页
+   实测**溢出 72px**，表现是右下角那个「返回」按钮压到底部详情条上、
+   说明文字被切掉一半。
+
+   改成 flex 之后版式块用 `flex: 1 1 auto` 吃掉"剩下的高度"：
+   页盒一定不会溢出，版式块自己变矮。写死的高度在别的页面上还会再犯一次。 */
+#animus .ax-page {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#animus .ax-page.active { display: flex; }
+
+/* 页首的"档案记录"条。
+   **原来这里还有一条 .ax-page-code**（在正文里再写一遍记录号），
+   但记录号已经在顶栏上了，两条一模一样的小字上下摆着像排版出错 ——
+   createPage 现在不再生成它，这条 CSS 也就跟着删了。 */
+#animus .ax-page-head {
+  flex: 0 0 auto;
+  margin-bottom: 2.2vh;
+  padding-bottom: 1.4vh;
+  border-bottom: 1px solid var(--ax-line);
+}
+
+#animus .ax-page-desc {
+  max-width: 35vw;
+  font-size: clamp(11px, 0.82vw, 17px);
+  line-height: 1.85;
+  letter-spacing: 0.05em;
+  color: var(--ax-ink-faint);
+}
+
+/* 列表在上、详情在下。
+   ------------------------------------------------------------
+   本来详情是**右侧**一列（AC 三列布局的正统做法），但这儿放不下：
+   实测主菜单页里立绘从 **0.64W** 就开始（她比看上去大得多），
+   内容列到 62vw 就得收住，35vw 的宽度分成两列的话，
+   设置行那个滑杆只剩不到 2vw —— 拖都拖不动。
+   AC2 的子页布局本来也允许「右侧**或底部**」的详情面板，所以走底部。
+
+   顺带一个好处：底部整条给中文用，说明文字不用再挤成三行短句。 */
+#animus .ax-page-cols {
+  display: block;
+  flex: 0 0 auto;
+}
+
+#animus .ax-list { min-width: 0; }
+
+#animus .ax-detail {
+  margin-top: 2.4vh;
+  padding-top: 1.5vh;
+  border-top: 1px solid var(--ax-line);
+  display: grid;
+  grid-template-columns: 13vw 1fr;
+  gap: 1.8vw;
+  align-items: start;
+  min-height: 12vh;
+}
+
+#animus .ax-detail-main {
+  min-width: 0;
+}
+
+#animus .ax-detail-body {
+  min-width: 0;
+}
+
+#animus .ax-detail-title {
+  font-size: clamp(13px, 1.02vw, 21px);
+  letter-spacing: 0.1em;
+  color: var(--ax-ink);
+  margin-bottom: 0.7vh;
+}
+
+#animus .ax-detail-value {
+  font-size: clamp(22px, 2vw, 40px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ax-ink);
+}
+
+#animus .ax-detail-note {
+  font-size: clamp(11px, 0.82vw, 17px);
+  line-height: 1.95;
+  letter-spacing: 0.04em;
+  color: var(--ax-ink-soft);
+  /* ============================================================
+     这一块**一次只放得下六行**（面板高 228、行高 1.95 ≈ 30.7px），
+     每行约 22~24 个中文字。超出去的部分会被面板裁掉，而且是静默的 ——
+     用户就是这么发现"小字太长，显示不全"的（原来主题那一行 163 个字）。
+
+     两条防线：
+       ① `text-wrap: pretty` —— 让浏览器别把最后一行只剩一两个字
+          （"孤字"）。新一点的 Chromium 才有，认不出来的浏览器直接忽略，
+          没有任何副作用。
+       ② 文案长度自律：一行 ≤22 字，两行 ≤40 字，三行 ≤58 字。
+          改这些 note 的时候对着量一下，别让面板裁字。
+     ============================================================ */
+  text-wrap: pretty;
+}
+
+#animus .ax-detail-id {
+  margin-top: 1.3vh;
+  font-size: clamp(10px, 0.7vw, 15px);
+  letter-spacing: 0.3em;
+  color: var(--ax-ink-faint);
+}
+
+/* ============================================================
+   四种版式：每一页必须长得不一样
+   ------------------------------------------------------------
+   参考图里最要紧的一条就是它 —— 物品页是散开的图标 + 引线标注，
+   服装页是一个人形剪影，数据库页是一摞斜放的卡片，章节页是横贯全屏的绳。
+   它们不是"同一个列表换内容"，是四个界面。
+
+   版式由 .ax-page 上的 data-layout 分支（见 settings-module.js）。
+   ============================================================ */
+
+/* ---- mixer：调音台 ----
+   竖直电平条横排。它们不是控件，是仪表 —— 拖滑杆时条子跟着涨。
+
+   **列数不写死**：`grid-auto-flow: column` + `grid-auto-columns: 1fr`
+   让"有几条通道就有几条"，加一条音量通道（比如语音）不需要回来改这里。
+   原来写的是 `grid-template-columns: repeat(3, 1fr)` —— 加第四条时
+   会掉到第二行，而这一页看起来只是"排版怪怪的"，不会报错。 */
+#animus .ax-rack {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1.6vw;
+  /* 吃掉页盒里剩下的高度，而不是写死 24vh（写死必然溢出，见 .ax-page） */
+  flex: 1 1 auto;
+  min-height: 14vh;
+  margin-bottom: 2.4vh;
+  padding-bottom: 2vh;
+  border-bottom: 1px solid var(--ax-line);
+}
+
+#animus .ax-chan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+}
+
+#animus .ax-chan-bar {
+  position: relative;
+  flex: 1;
+  width: 2.1vw;
+  min-height: 0;
+  background: rgba(var(--ax-ink-rgb), 0.07);
+  border: 1px solid var(--ax-line);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+/* 电平：从下往上涨。和真实表头一样，涨落有阻尼（transition）。 */
+#animus .ax-chan-bar i {
+  display: block;
+  width: 100%;
+  height: 0;
+  background: linear-gradient(180deg, var(--ax-mark-lit) 0%, var(--ax-mark) 100%);
+  transition: height 0.22s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+#animus .ax-chan-name {
+  margin-top: 1.1vh;
+  font-size: clamp(11px, 0.86vw, 18px);
+  letter-spacing: 0.12em;
+  color: var(--ax-ink-soft);
+  white-space: nowrap;
+}
+
+/* mixer 的行缩成一条：左边名字、中间滑杆、右边读数 */
+#animus .ax-page[data-layout="mixer"] .ax-page-cols { display: block; }
+#animus .ax-page[data-layout="mixer"] .ax-detail { display: none; }
+
+/* ---- writer：打字机预览 ----
+   上面一个实时预览框（示例台词按当前速度逐字打出来），下面两行滑杆。 */
+#animus .ax-writer {
+  padding: 2vh 1.6vw;
+  margin-bottom: 2.6vh;
+  border: 1px solid var(--ax-line);
+  background: var(--ax-surface);
+  flex: 1 1 auto;
+  min-height: 11vh;
+}
+
+#animus .ax-writer-who {
+  font-size: clamp(11px, 0.8vw, 17px);
+  letter-spacing: 0.2em;
+  color: var(--ax-mark);
+  margin-bottom: 1vh;
+}
+
+#animus .ax-writer-line {
+  font-size: clamp(14px, 1.15vw, 24px);
+  line-height: 1.8;
+  letter-spacing: 0.06em;
+  color: var(--ax-ink);
+  min-height: 1.8em;
+}
+
+/* 打字光标：一个一直在眨的方块。没有它，逐字出字看起来像卡顿 */
+#animus .ax-writer-line::after {
+  content: "";
+  display: inline-block;
+  width: 0.5vw;
+  height: 1em;
+  margin-left: 0.15vw;
+  vertical-align: -0.14em;
+  background: var(--ax-ink);
+  animation: ax-blink 1s steps(1, end) infinite;
+}
+
+#animus .ax-page[data-layout="writer"] .ax-page-cols { display: block; }
+
+/* ---- screen：屏幕示意 ----
+   一个代表显示器的框，里面的"窗口"随全屏开关涨缩。 */
+#animus .ax-screen {
+  position: relative;
+  /* 原来是 height: 30vh —— 这一页就是被它顶溢出的（页盒 680，
+     页首 97 + 30vh 324 + 缝 28 + 列表详情 280 = 752）。 */
+  flex: 1 1 auto;
+  min-height: 18vh;
+  margin-bottom: 2.6vh;
+  border: 1px solid var(--ax-line);
+  background: var(--ax-surface);
+  overflow: hidden;
+}
+
+/* 屏幕背板上的十字准线：让它读起来像"显示器"，不是"一个空盒子" */
+#animus .ax-screen::before,
+#animus .ax-screen::after {
+  content: "";
+  position: absolute;
+  background: var(--ax-line-soft);
+}
+
+#animus .ax-screen::before { left: 0; right: 0; top: 50%; height: 1px; }
+#animus .ax-screen::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+
+#animus .ax-screen-win {
+  position: absolute;
+  left: 22%;
+  top: 24%;
+  right: 22%;
+  bottom: 24%;
+  border: 1px solid var(--ax-mark);
+  background: rgba(var(--ax-mark-rgb), 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 全屏/窗口的切换靠它动 —— 这一页的开关有了看得见的后果 */
+  transition: left 0.45s cubic-bezier(0.3, 0.8, 0.3, 1),
+              right 0.45s cubic-bezier(0.3, 0.8, 0.3, 1),
+              top 0.45s cubic-bezier(0.3, 0.8, 0.3, 1),
+              bottom 0.45s cubic-bezier(0.3, 0.8, 0.3, 1),
+              background 0.3s ease;
+}
+
+#animus .ax-screen-win.full {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(var(--ax-mark-rgb), 0.14);
+}
+
+#animus .ax-screen-win span {
+  font-size: clamp(11px, 0.82vw, 17px);
+  letter-spacing: 0.3em;
+  color: var(--ax-mark);
+}
+
+#animus .ax-page[data-layout="screen"] .ax-page-cols { display: block; }
+
+/* ---- stage：舞台 ----
+   控件挤到左边一条窄栏，右边整个留给立绘。
+   这一页的"内容"就是右边那个人 —— 拖滑杆时直接看她变。 */
+#animus .ax-page[data-layout="stage"] .ax-page-cols {
+  display: block;
+  max-width: 30vw;
+}
+
+#animus .ax-page[data-layout="stage"] .ax-detail {
+  grid-template-columns: 1fr;
+  gap: 0.8vh;
+}
+
+/* 舞台页的行拉宽一点 —— 右边全空着，没必要挤 */
+#animus .ax-page[data-layout="stage"] .ax-row {
+  grid-template-columns: 7.5vw 1fr 4.4vw;
+}
+
+
+#animus .ax-row {
+  display: grid;
+  grid-template-columns: 9vw 1fr 4.6vw;
+  align-items: center;
+  gap: 0.9vw;
+  padding: 1.5vh 0;
+  border-bottom: 1px solid var(--ax-line-soft);
+  transition: background 0.16s ease;
+}
+
+#animus .ax-row:last-child { border-bottom: 0; }
+
+/* 焦点行：左边一条**位置信号色的短条**。
+   参考图里子列表的选中项就是这么标的 —— 一条实心小块贴在左边，
+   比"加粗 / 变色"重得多，而且一眼扫得到。 */
+#animus .ax-row {
+  position: relative;
+}
+
+#animus .ax-row::before {
+  content: "";
+  position: absolute;
+  left: -0.9vw;
+  top: 50%;
+  width: 0.34vw;
+  height: 0;
+  background: var(--ax-mark);
+  transform: translateY(-50%);
+  transition: height 0.18s ease;
+}
+
+#animus .ax-row.focused::before { height: 2.6vh; }
+
+#animus .ax-row-label {
+  font-size: clamp(13px, 0.98vw, 20px);
+  letter-spacing: 0.08em;
+  color: var(--ax-ink-soft);
+  transition: color 0.16s ease;
+}
+
+#animus .ax-row.focused .ax-row-label { color: var(--ax-ink); }
+
+#animus .ax-row-value {
+  text-align: right;
+  font-size: clamp(13px, 0.98vw, 20px);
+  font-variant-numeric: tabular-nums;
+  color: var(--ax-ink);
+}
+
+/* ---- 滑杆：一条发丝刻度 + 一个方块 ---- */
+#animus input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.6vh;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+#animus input[type="range"]::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--ax-line);
+}
+
+#animus input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.62vw;
+  height: 1.35vh;
+  margin-top: -0.62vh;
+  border: 0;
+  border-radius: 0;
+  background: var(--ax-cyan);
+  box-shadow: 0 0 0 3px var(--ax-flash);
+  transition: background 0.16s ease;
+}
+
+#animus input[type="range"]:hover::-webkit-slider-thumb,
+#animus input[type="range"]:focus::-webkit-slider-thumb {
+  background: var(--ax-gold);
+}
+
+#animus input[type="range"]:focus { outline: none; }
+
+/* ---- 分段选择：一排小格，选中那格是位置信号色 ----
+   选项少的时候比下拉框好：一眼看全、点一下就换，
+   而且「当前是哪个」这件事本身就看得见。 */
+#animus .ax-choice {
+  display: flex;
+  gap: 1px;
+  background: var(--ax-line);
+  border: 1px solid var(--ax-line);
+  width: fit-content;
+}
+
+#animus .ax-choice-item {
+  padding: 0.85vh 1.1vw;
+  border: 0;
+  border-radius: 0;
+  background: var(--ax-surface);
+  color: var(--ax-ink-soft);
+  font-family: inherit;
+  font-size: clamp(11px, 0.82vw, 17px);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+#animus .ax-choice-item:hover,
+#animus .ax-choice-item:focus-visible {
+  outline: none;
+  color: var(--ax-ink);
+  background: var(--ax-surface-lit);
+}
+
+/* 选中：实心的位置信号色 + 压在上面的深字 */
+#animus .ax-choice-item.on {
+  background: var(--ax-mark);
+  color: var(--ax-mark-ink);
+}
+
+/* ============================================================
+   只读的分段选择（`.locked`）
+   ------------------------------------------------------------
+   用在「界面主题」上：主题模式是跟随时间/跟随时，这一行的值由别处算，
+   玩家改不了 —— 但它**还在显示现在实际生效的是哪一套**，
+   所以不能整个藏掉，也不能灰到看不见。
+
+   做法是：取消悬停反馈 + 选中的那一格不填实心，改成描边。
+   `disabled` 是真的 disabled（JS 那边设的），所以光标和键盘也一起对了。
+   ============================================================ */
+#animus .ax-choice.locked .ax-choice-item { cursor: default; }
+
+#animus .ax-choice.locked .ax-choice-item:hover,
+#animus .ax-choice.locked .ax-choice-item:focus-visible {
+  color: var(--ax-ink-soft);
+  background: var(--ax-surface);
+}
+
+#animus .ax-choice.locked .ax-choice-item.on {
+  background: var(--ax-mark-wash);
+  color: var(--ax-mark);
+  box-shadow: inset 0 0 0 1px var(--ax-mark);
+}
+
+/* ---- 开关：不是胶囊，是一个方框里的实心块 ---- */
+#animus .ax-switch {
+  position: relative;
+  width: 3.1vw;
+  height: 2.1vh;
+  min-height: 16px;
+  border: 1px solid var(--ax-line);
+  background: var(--ax-surface);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+#animus .ax-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 3px);
+  background: var(--ax-ink-faint);
+  transition: transform 0.18s cubic-bezier(0.3, 0.8, 0.3, 1), background 0.18s ease;
+}
+
+#animus .ax-switch.on {
+  border-color: var(--ax-cyan);
+  background: var(--ax-cyan-wash);
+}
+
+#animus .ax-switch.on::after {
+  transform: translateX(calc(100% + 2px));
+  background: var(--ax-cyan);
+}
+
+#animus .ax-switch:focus-visible {
+  outline: 1px solid var(--ax-cyan);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   章节选择：**祈愿的天使，一只半展开的翅膀**
+   ------------------------------------------------------------
+   这一页不是"一个列表"，是**她那只翅膀** —— 一片羽毛是一章。
+   羽翼在这个剧本里是核心代价（5A-2 失去羽翼 / 5B-2 归还羽翼），
+   所以它该长成翅膀，而不是长成一条数据结构。
+
+   ## 为什么是 SVG 而不是 canvas
+
+   这一页原来是 canvas 画的。换成 SVG 有三条硬理由（详细那段在
+   memory-module.js 的开头）：线稿天生是 stroke / 25 片羽毛要能 hover 能点
+   （SVG 白送命中测试，canvas 要自己做）/ 颜色能走 CSS 变量
+   （canvas 拿不到 var()，只能读 --ax-*-rgb 再拼字符串）。
+
+   代价是**不能每帧动** —— 这里就是有意的：祈愿是静止的。
+
+   ## 线稿规则
+
+   整张图**没有一处 fill**，只有 stroke。所以：
+     · `fill: none` 是必须的（SVG 默认 fill 是黑色，不写就是一团黑）
+     · `stroke: var(--ax-ink)` 跟着主题走，四套光里都是"那条线"
+     · 位置信号色（`--ax-mark`）只用在**选中 / 当前**那一片羽毛上 ——
+       和别的页面同一条规矩：整屏只有一个"你在这里"
+   ============================================================ */
+#animus .ax-wing {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ---- 章节选择：**一摞散开的卡片** ----
+   参考图是 Animus 的数据库页：卡片散着、互相压着、选中的浮上来带一颗菱形。
+   这一页换过十版形状（草 / 栅栏 / 须刷 / 散叶 / 排线 / 六种翅膀 / 光环），
+   卡片是唯一一个"几何上不会出错"的：位置和旋转都是几个数算出来的。
+
+   **压叠顺序 = 章节顺序**（后画的在上），选中那张由 JS 移到最后 ->
+   它一定在最上面。和实物一样：抽出来的那张总在最上面。 */
+#animus .ax-cards-svg {
+  overflow: visible;
+}
+
+#animus .ax-feather {
+  cursor: pointer;
+  /* **位置写在 style.transform 里，所以过渡能管到它。**
+     transform-box: view-box 让 translate 的单位是 viewBox 单位
+     （不然是按元素自己的包围盒算，卡片会飞到奇怪的地方）；
+     transform-origin: center 保证"放大"是绕卡片中心放，不是绕左上角。 */
+  transform-box: view-box;
+  /* transform-origin 必须是 0 0，不能是 center。
+     卡片里的元素是**以卡片中心为原点**画的（-w/2 ~ +w/2），
+     所以这个 <g> 的局部原点就是卡片中心 —— translate 之后
+     rotate / scale 正好绕它自己做。
+     写成 center 的话，缩放会绕**画布中心**做，卡片会被推出上百个单位
+     （实测偏了约 190px，而且越靠边缘偏得越多）。 */
+  transform-origin: 0 0;
+  /* 转圈的时长**不在这里**了 —— 转圈改由 memory-module.js 的
+     spinToIndex() 用 rAF 自己算（CSS 过渡那条路不生效，见那边的注释）。
+     这里只留颜色变化：卡片被指到/选中时边线和底色的淡入。 */
+  transition: opacity 0.24s ease;
+}
+
+#animus .ax-card-plate {
+  fill: var(--ax-surface);
+  stroke: var(--ax-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  transition: fill 0.18s ease, stroke 0.18s ease;
+}
+
+/* 卡里那块"照片"。我们没图，就用一块亮一点的板 + 一道横线暗示它是一张照片。 */
+#animus .ax-card-shot {
+  fill: var(--ax-tile);
+  opacity: 0.18;
+  stroke: none;
+  transition: opacity 0.18s ease;
+}
+
+#animus .ax-card-shotline {
+  stroke: var(--ax-ink);
+  opacity: 0.16;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 编号：**默认唯一显示的字**。名字要选中才给。 */
+#animus .ax-card-no {
+  font-family: inherit;
+  /* 卡上现在只有**一个数字**（章号），不是 "1-1" 那种小节号 ——
+     它是这一页最要紧的一个字符，所以给到 34px。 */
+  font-size: 34px;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ax-ink-faint);
+}
+
+/* 选中的菱形记号。平时不显示。 */
+#animus .ax-card-mark {
+  fill: var(--ax-mark);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+/* ---- 状态：**读过的亮、没读到的暗** ----
+   注意这里只管"看起来怎么样"。"点了会怎样"由 `.unread` 那一条管，
+   因为 open（主菜单，进度未知）和 locked（这一周目没读到）现在
+   **都是不能点的**，只是暗的程度不同。 */
+#animus .ax-feather.done .ax-card-shot { opacity: 0.34; }
+#animus .ax-feather.done .ax-card-no { fill: var(--ax-ink-soft); }
+
+#animus .ax-feather.current .ax-card-plate {
+  stroke: var(--ax-mark);
+  fill: var(--ax-mark-wash);
+}
+#animus .ax-feather.current .ax-card-shot { opacity: 0.5; }
+#animus .ax-feather.current .ax-card-no { fill: var(--ax-mark); }
+
+/* 没推到过的：整张压暗。"不能点"要在没点之前就看得出来。 */
+#animus .ax-feather.locked .ax-card-plate { opacity: 0.42; }
+#animus .ax-feather.locked .ax-card-shot { opacity: 0.1; }
+
+/* open = 进度未知（主菜单）—— 名字是 ???、进不去，但**转得动**，
+   所以只是比 locked 亮一档，暗得轻一些 */
+#animus .ax-feather.open .ax-card-shot { opacity: 0.22; }
+
+/* ============================================================
+   **"指到"和"选中"必须一眼分得开**
+   ------------------------------------------------------------
+   两步点击之后，玩家得知道眼前这张点下去是"转过来"还是"进去"。
+   所以两态用两套完全不同的记号：
+
+     hover（指到）  细边 + 底色略亮，**没有菱形**
+     front（选中）  加粗金边 + 底色 wash + **角上那颗菱形**
+
+   菱形只有一颗，永远在"再点一次就会进去"的那张上 ——
+   它就是那个确认记号。
+   ============================================================ */
+#animus .ax-feather.focused .ax-card-plate,
+#animus .ax-feather:hover .ax-card-plate {
+  stroke: var(--ax-ink-soft);
+  fill: var(--ax-surface-lit);
+}
+
+#animus .ax-feather.focused .ax-card-shot,
+#animus .ax-feather:hover .ax-card-shot { opacity: 0.46; }
+
+#animus .ax-feather.focused .ax-card-no,
+#animus .ax-feather:hover .ax-card-no { fill: var(--ax-ink); }
+
+/* 划过不给菱形 */
+#animus .ax-feather.focused .ax-card-mark,
+#animus .ax-feather:hover .ax-card-mark { opacity: 0; }
+
+/* ---- 选中（front）：再点一次就会进去的那一张 ---- */
+#animus .ax-feather.front .ax-card-plate {
+  stroke: var(--ax-mark);
+  stroke-width: 2;
+  fill: var(--ax-mark-wash);
+}
+
+#animus .ax-feather.front .ax-card-shot { opacity: 0.5; }
+#animus .ax-feather.front .ax-card-no { fill: var(--ax-mark); }
+#animus .ax-feather.front .ax-card-mark { opacity: 1; }
+
+/* 划过已经选中的那张：还是选中那副样子（菱形留着），
+   所以能看出"点它就会进去" */
+#animus .ax-feather.front.focused .ax-card-plate,
+#animus .ax-feather.front:hover .ax-card-plate {
+  stroke: var(--ax-mark);
+  stroke-width: 2;
+  fill: var(--ax-mark-wash);
+}
+
+#animus .ax-feather.front.focused .ax-card-mark,
+#animus .ax-feather.front:hover .ax-card-mark { opacity: 1; }
+
+/* ============================================================
+   `unread` = 没读过的那几张（open + locked 都算）
+   ------------------------------------------------------------
+   **它只表示"进不去"，不表示"动不了"**：
+   没读过的卡照样能转过来、能划过、能被键盘选到 ——
+   转过来是为了看清"这是第几章"（名字仍然是 ???）。
+
+   唯一被拿掉的是那颗**菱形**。菱形按定义是"再点一次就进去"的
+   确认记号（见上面那段），对一张点了不动的卡显示它就是骗人。
+   所以这里的规则只有一条：压住菱形。
+   压暗、光标这些**不在这里管** —— 那是 open / locked 各自的事，
+   混进来会让"暗"和"不能进"两件事绑死，以后想分开就得拆。
+   ============================================================ */
+#animus .ax-feather.unread .ax-card-mark,
+#animus .ax-feather.unread.front .ax-card-mark,
+#animus .ax-feather.unread.front:hover .ax-card-mark,
+#animus .ax-feather.unread.front.focused .ax-card-mark { opacity: 0; }
+
+/* hover 到 locked 上也让卡亮起来（表示"鼠标收到了"），
+   但**不给位置信号色、也不给菱形** —— 那颗菱形的意思是"这里可以过去"，
+   对一张走不到的卡片说这句话是骗人。 */
+#animus .ax-feather.locked:hover .ax-card-plate,
+#animus .ax-feather.locked.focused .ax-card-plate {
+  stroke: var(--ax-ink-soft);
+  fill: var(--ax-surface-lit);
+}
+
+#animus .ax-feather.locked:hover .ax-card-mark,
+#animus .ax-feather.locked.focused .ax-card-mark { opacity: 0; }
+
+#animus .ax-feather:focus { outline: none; }
+
+/* ---- 热区对齐模式：?wingalign=1 ---- */
+#animus .ax-wing.align .ax-card-plate {
+  stroke: var(--ax-cyan);
+  fill: var(--ax-mark-wash);
+}
+
+/* ---- 标签：**只有一个**，选中谁挪到谁身上 ----
+   默认整组 opacity: 0（"没选择就隐藏"），选中才 .on。
+   它是 SVG 里的 <text>，所以字号跟着 viewBox 缩放，位置也不用换算像素。 */
+#animus .ax-wing-label {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
+}
+
+#animus .ax-wing-label.on { opacity: 1; }
+
+#animus .ax-wing-label text {
+  font-family: inherit;
+  paint-order: stroke;
+  /* 描一圈底色再填字：标签会落在羽毛线上，不描的话字和线糊在一起 */
+  stroke: var(--ax-bg-mid);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+/* 圆心这一行是**幕名**。它现在是主读数的一部分，不是注释 ——
+   所以用 ink-soft 而不是 ink-faint（faint 那一档在 21px 上还是太虚）。 */
+#animus .ax-wing-label-act {
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  fill: var(--ax-ink-soft);
+}
+
+#animus .ax-wing-label-name {
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  fill: var(--ax-ink);
+}
+
+/* 未解锁：名字那个字换成问号，颜色也降一档 */
+#animus .ax-wing-label.locked .ax-wing-label-name { fill: var(--ax-ink-soft); }
+
+/* 整只翅膀极慢地呼吸一下。幅度只有几个像素 ——
+   静止的线稿会显得像"图挂了"，有一点位移才像"她在那里呼吸"。 */
+@keyframes ax-wing-breathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+#animus .ax-wing { animation: ax-wing-breathe 11s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  #animus .ax-wing { animation: none; }
+}
+
+/* ---- 章节页的页内布局 ----
+   这一页只有两块：整只翅膀（吃掉剩下的高度）+ 底部的详情条。
+   和别的版式一样走 flex，不写死高度（见 .ax-page 那一段的注释）。 */
+#animus .ax-page[data-module="memory"] .ax-page-cols {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#animus .ax-page[data-module="memory"] .ax-list {
+  flex: 1 1 auto;
+  min-height: 26vh;
+}
+
+#animus .ax-page[data-module="memory"] .ax-detail {
+  flex: 0 0 auto;
+  margin-top: 1.2vh;
+}
+
+#animus .ax-empty {
+  padding: 2vh 0;
+  font-size: clamp(12px, 0.88vw, 18px);
+  line-height: 2;
+  letter-spacing: 0.06em;
+  color: var(--ax-ink-faint);
+}
+
+/* ============================================================
+   面包屑 + 按键提示
+   ------------------------------------------------------------
+   参考图里左下角永远有一行「菱形 + 当前位置」（ANIMUS桌面 / 归档 / 物品 / 数据库），
+   右下角是一行「圆钮 + 动作」（选择 / 返回）。
+   两个都很小，但少了它们就不像那套界面 —— 它们是"这是个操作系统"的口气。
+   ============================================================ */
+#animus .ax-breadcrumb {
+  position: absolute;
+  left: 3vw;
+  bottom: 5.6vh;
+  display: flex;
+  align-items: center;
+  gap: 0.7vw;
+  font-size: clamp(12px, 0.92vw, 19px);
+  letter-spacing: 0.16em;
+  color: var(--ax-ink-soft);
+}
+
+/* 菱形：面包屑的图标（位置信号色） */
+#animus .ax-breadcrumb::before {
+  content: "";
+  width: 0.62vw;
+  height: 0.62vw;
+  background: var(--ax-mark);
+  transform: rotate(45deg);
+  box-shadow: -0.22vw 0.22vw 0 rgba(var(--ax-ink-rgb), 0.22);
+}
+
+/* 右下角那两颗按键提示（`.ax-keys` / `.ax-key` / `.ax-key.back`）删掉了。
+   它们是从参考图（`L 浏览 / B 选择 / O 返回`）搬来的，先发现第 1 层
+   写着是骗人的（方向键在页面里不管用），后来第 0 层也一并去掉 ——
+   桌面上那一摞瓦片本来就靠鼠标，键盘玩家按一下也就知道了，
+   不值得在右下角常驻一块没人读的小字。行为没变，只是不再有牌子。 */
+
+/* ============================================================
+   底栏
+   ============================================================ */
+#animus .ax-foot {
+  position: absolute;
+  left: 27vw;
+  bottom: 5.6vh;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2vw;
+}
+
+#animus .ax-actions { display: flex; gap: 0.5vw; }
+#animus .ax-foot.no-actions .ax-actions { display: none; }
+
+#animus .ax-action {
+  padding: 1.05vh 1.5vw;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ax-ink-soft);
+  font-family: inherit;
+  font-size: clamp(12px, 0.92vw, 19px);
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+#animus .ax-action:hover,
+#animus .ax-action:focus-visible {
+  outline: none;
+  color: var(--ax-ink);
+  border-color: var(--ax-line);
+  background: var(--ax-surface-lit);
+}
+
+/* ============================================================
+   返回按钮（`.ax-action.primary`）
+   ------------------------------------------------------------
+   全项目**只有外壳自己那一颗**用 primary —— 模块没人用过
+   （grep 过 `primary`：只有 renderFooter 里那个 back）。
+   所以这一段可以放心当成"返回按钮"来写，不会波及其他按钮。
+
+   它原来是整页**唯一被填满**的东西：`background: var(--ax-ink)`
+   在 1920×1080 上就是一块 68×36 的实心方砖。而这一页别的全是
+   细描边 + 极淡的 wash + 拉开字距的小字 —— 于是它读起来像
+   浏览器默认按钮，不像这台机器的一部分。
+
+   现在改成同一套语言：细描边 + 透明底 + 左边一颗向左的小箭头。
+   **金色只在划过时出现** —— 位置信号色是"她在看着你"的颜色，
+   不该常驻在一个按钮上。
+   ============================================================ */
+#animus .ax-action.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55vw;
+  /* 右边比左边少 0.22em —— 那正好是 letter-spacing 在最后一个字后面
+     留出的空。不减的话文字整体偏左，框里右边空一块（放大看过才看出来）。 */
+  padding: 1.05vh calc(1.25vw - 0.22em) 1.05vh 1.25vw;
+  background: transparent;
+  /* 用 --ax-line（0.18~0.26）而不是 --ax-line-soft（0.08~0.11）：
+     后者是页面里分隔线用的，描在按钮上细到看不见，
+     会读成"这个按钮被禁用了"。 */
+  border-color: var(--ax-line);
+  color: var(--ax-ink-soft);
+  letter-spacing: 0.22em;
+}
+
+/* 向左的小箭头：两条边框拼一个"肘"，转 45° 就是箭头。
+   不用字符（`‹` 各字体形状差很多，也吃不到界面里那 1px 的线宽）。
+
+   **方向和哪两条边是绑死的，不能随手换**：
+   左肘的坐标是 (-1,+1)（左下），顺时针 45° 之后变成 (-1,0)，正指向左。
+   第一版我写的是 border-top + border-left（肘在左上 = (-1,-1)），
+   同样转 45° 得到的是 (0,-1) —— **一个朝上的箭头**。
+   所以下面这四条必须一起看：bottom、left、45deg。 */
+#animus .ax-action.primary::before {
+  content: '';
+  width: 0.46vw;
+  height: 0.46vw;
+  min-width: 5px;
+  min-height: 5px;
+  border-bottom: 1px solid currentColor;
+  border-left: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+
+#animus .ax-action.primary:hover,
+#animus .ax-action.primary:focus-visible {
+  outline: none;
+  background: var(--ax-mark-wash);
+  border-color: var(--ax-mark);
+  color: var(--ax-ink);
+}
+
+/* ============================================================
+   动效
+   ============================================================ */
+
+/* ---- 锁定：整层从 1.02 缩到 1 并淡入，像镜头对焦 ---- */
+#animus .ax-scanbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22vh;
+  transform: translateY(-24vh);
+  background: linear-gradient(180deg,
+    rgba(var(--ax-cyan-rgb), 0) 0%,
+    rgba(var(--ax-cyan-rgb), 0.16) 62%,
+    rgba(var(--ax-cyan-rgb), 0.55) 92%,
+    rgba(var(--ax-flash-rgb), 0.9) 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#animus.scan .ax-scanbar { animation: ax-scan 0.52s cubic-bezier(0.3, 0.7, 0.4, 1); }
+
+@keyframes ax-scan {
+  0%   { transform: translateY(-24vh); opacity: 0.2; }
+  12%  { opacity: 1; }
+  100% { transform: translateY(108vh); opacity: 0; }
+}
+
+#animus .ax-plate {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+
+#animus.open .ax-plate {
+  animation: ax-lock-in 0.36s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes ax-lock-in {
+  from { transform: scale(1.018); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ---- 失同步（切页时的那一下）----
+   真实的 RGB 分离要复制一份 DOM，太贵；文字用 text-shadow 做双色偏移
+   就够了 —— 它在视觉上就是同一个东西，而且零成本。
+   配合位移和 clip 的阶梯，读起来是"信号断了一帧"。 */
+#animus .ax-page.desync {
+  animation: ax-desync 0.34s steps(1, end);
+}
+
+@keyframes ax-desync {
+  0% {
+    transform: translateX(0);
+    text-shadow: none;
+    clip-path: none;
+  }
+  12% {
+    transform: translateX(-7px);
+    text-shadow: 3px 0 rgba(var(--ax-cyan-rgb), 0.75), -3px 0 rgba(var(--ax-mark-rgb), 0.55);
+    clip-path: inset(0 0 62% 0);
+  }
+  24% {
+    transform: translateX(6px);
+    text-shadow: -4px 0 rgba(var(--ax-cyan-rgb), 0.7), 4px 0 rgba(var(--ax-mark-rgb), 0.5);
+    clip-path: inset(46% 0 0 0);
+  }
+  38% {
+    transform: translateX(-3px);
+    text-shadow: 2px 0 rgba(var(--ax-cyan-rgb), 0.55), -2px 0 rgba(var(--ax-mark-rgb), 0.4);
+    clip-path: inset(18% 0 34% 0);
+  }
+  56% {
+    transform: translateX(0);
+    text-shadow: 0 0 8px rgba(var(--ax-cyan-rgb), 0.9);
+    clip-path: none;
+  }
+  100% {
+    transform: translateX(0);
+    text-shadow: none;
+    clip-path: none;
+  }
+}
+
+/* 撕裂条：和上面同一条链上的一次横向闪带，横跨整个界面 */
+#animus .ax-tear {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  background: linear-gradient(90deg,
+    rgba(var(--ax-cyan-rgb), 0) 0%,
+    rgba(var(--ax-cyan-rgb), 0.5) 30%,
+    rgba(var(--ax-flash-rgb), 0.95) 50%,
+    rgba(var(--ax-mark-rgb), 0.35) 70%,
+    rgba(var(--ax-cyan-rgb), 0) 100%);
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: var(--ax-flash-blend);
+}
+
+#animus.scan .ax-tear { animation: ax-tear 0.34s steps(1, end); }
+
+@keyframes ax-tear {
+  0%   { top: 8%;  height: 2px; opacity: 0; }
+  14%  { top: 26%; height: 3px; opacity: 1; }
+  30%  { top: 61%; height: 2px; opacity: 0.85; }
+  48%  { top: 44%; height: 4px; opacity: 0.5; }
+  70%  { top: 78%; height: 2px; opacity: 0.25; }
+  100% { top: 78%; height: 0;   opacity: 0; }
+}
+
+/* ---- 碎片拼合：内容"从对焦线上被拉出来" ----
+   位移从左边进来（不是从下面），因为空间连线是从左边指向这边的 ——
+   动效的方向要和空间的逻辑一致，否则两个信号互相拆台。 */
+#animus .ax-page.enter .ax-page-cols > * {
+  animation: ax-fragment 0.44s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+
+#animus .ax-page.enter .ax-page-cols > *:nth-child(2) { animation-delay: 0.07s; }
+
+@keyframes ax-fragment {
+  from { opacity: 0; transform: translateX(-1.1vw); filter: blur(2px); }
+  to   { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+
+/* ============================================================
+   减少动态效果
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  #animus .ax-grid,
+  #animus .ax-stream i { animation: none; }
+  #animus.scan .ax-scanbar,
+  #animus.scan .ax-tear { animation: none; opacity: 0; }
+  #animus .ax-page.enter .ax-page-cols > * { animation: none; }
+  #animus .ax-page.desync { animation: none; }
+  #animus.open .ax-plate { animation: none; }
+}

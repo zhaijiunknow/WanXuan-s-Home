@@ -15,12 +15,18 @@ using VoltstroStudios.UnityWebBrowser.Core;
 ///   C# → JS   { v:1, type:"…", payload:{…} }
 ///   JS → C#   { v:1, type:"…", payload:{…} }
 ///
-/// 两个容易踩的坑，都已处理：
+/// 三个容易踩的坑，都已处理：
 ///   1) jsMethodsEnable 默认是关的，而 RegisterJsMethod 在关闭时会抛 NotEnabledException —— 必须显式开启。
 ///   2) UWB 的 JS 回调不保证在主线程，因此收到消息先入队，再在 Update 里派发；
 ///      否则订阅者直接改 UI 会抛 "can only be called from the main thread"。
+///   3) **引擎就绪 ≠ 网页能收**。`ReadySignalReceived` 是引擎级信号
+///      （WebBrowserClient 里那句 "UWB startup success, connecting…"），它只说明 CEF 进程起来了，
+///      此时网页的脚本可能还没跑完 —— 那时候往外发，消息会被执行成
+///      "Uncaught TypeError: window.__vnReceive is not a function" 然后**静默丢掉**。
+///      所以发送要等网页自己发来的 `ready` 才放行（见 PostRaw / Update）。
 ///
-/// 不需要手动挂载：AutoInstall 会在进入 Play 时自己找到 UWB 组件并挂上去。
+/// 不需要手动挂载：AutoInstall 会在进入 Play 时自己找到 UWB 组件并挂上去，
+/// 之后每次场景载入也会再挂一次（见 UwbAutoInstall）。
 /// </summary>
 public class WebUiBridge : MonoBehaviour
 {
@@ -41,8 +47,23 @@ public class WebUiBridge : MonoBehaviour
     /// <summary>待发队列上限，防止长时间连不上时无限增长。</summary>
     private const int OutgoingQueueLimit = 64;
 
+    /// <summary>
+    /// 引擎就绪之后最多再等网页多久才不管三七二十一开始发。
+    ///
+    /// 正常路径用不到它：网页画好第一帧就发 `ready`，通常在 1 秒内。
+    /// 留着是为了"网页改了但忘了发 ready / 页面启动时抛异常"这类情况 ——
+    /// 那时候宁可按已就绪处理（消息可能白丢），也不能让剧情一句都发不出去。
+    /// </summary>
+    private const float ReadyFallbackSeconds = 3f;
+
     private WebBrowserClient client;
     private bool handshakeSent;
+
+    /// <summary>网页说过 `ready` 了没有 —— 见 PostRaw 的闸门。不是"引擎连上了"。</summary>
+    private bool pageReady;
+
+    /// <summary>引擎就绪的时刻，给 ReadyFallbackSeconds 兜底计时用。负数表示还没就绪。</summary>
+    private float engineReadyAt = -1f;
 
     // ---------------------------------------------------------------
     // 自动挂载
@@ -51,22 +72,20 @@ public class WebUiBridge : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoInstall()
     {
-        // 必须写全 UnityEngine.Object：本文件同时 using System 和 UnityEngine，
-        // 直接写 Object 会在 System.Object 和 UnityEngine.Object 之间产生 CS0104 歧义。
-        var managers = UnityEngine.Object.FindObjectsByType<BaseUwbClientManager>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        // 走 UwbAutoInstall：启动场景立即挂一次，之后每次场景载入再挂一次。
+        // 游戏场景那台 WebView（BrowserController）是全新对象，不补挂就是断的 ——
+        // 见 UwbAutoInstall 的类注释：这件事和 WebUiBridge 里的 ready 闸门是一套。
+        UwbAutoInstall.Register(Install);
+    }
 
-        for (var i = 0; i < managers.Length; i++)
-        {
-            var manager = managers[i];
-            if (manager == null || manager.GetComponent<WebUiBridge>() != null)
-            {
-                continue;
-            }
+    private static void Install()
+    {
+        // 诊断：用来区分 "AutoInstall 根本没执行到" 和 "执行了但没找到 UWB 组件"。
+        // 每次场景载入都会打一条，切场景后应当看到新场景名。
+        var found = UwbAutoInstall.Attach<WebUiBridge>("WebUiBridge");
 
-            manager.gameObject.AddComponent<WebUiBridge>();
-            Debug.Log($"[WebUiBridge] 已挂到 “{manager.gameObject.name}” 上。");
-        }
+        Debug.Log($"[WebUiBridge] AutoInstall：场景={UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}" +
+                  $"，找到 {found} 个 BaseUwbClientManager");
     }
 
     private void Awake()
@@ -161,10 +180,16 @@ public class WebUiBridge : MonoBehaviour
             return;
         }
 
-        // 还没连上时必须入队而不是丢弃。
-        // 原因：剧情在 GameManager.Start() 就开跑，而 CEF 引擎要几秒才能连上，
+        // 还没连上、或者网页还没说 ready，都必须入队而不是丢弃。
+        // 原因：剧情在 GameManager.Start() 就开跑，而 CEF 引擎要几秒才能连上；
         // 若在这里直接 return，开场第一句 dialogue.show 会永久丢失，玩家只能看到空白页面。
-        if (!client.IsConnected || !client.ReadySignalReceived)
+        //
+        // ⚠ `!pageReady` 这一条是**必须**的，不是保守：`ReadySignalReceived` 只代表
+        //    CEF 进程起来了，网页脚本那时可能还没跑完 —— 一旦提前发出去，消息会被
+        //    v8 执行成 "Uncaught TypeError: window.__vnReceive is not a function" 并静默丢掉。
+        //    实测过：开场四条（握手 / story.load / 幕标题 / 第一句）全丢，
+        //    玩家看到的是空白对话框，点一下直接跳到第二句。
+        if (!client.IsConnected || !client.ReadySignalReceived || !pageReady)
         {
             lock (outgoing)
             {
@@ -232,6 +257,28 @@ public class WebUiBridge : MonoBehaviour
             return;
         }
 
+        // 引擎就绪的时刻（只记一次），给下面的兜底计时用。
+        if (engineReadyAt < 0f)
+        {
+            engineReadyAt = Time.unscaledTime;
+        }
+
+        /* 等网页开口。见类注释第 3 条：引擎就绪不等于网页能收消息。
+           `ready` 是网页自己发的（游戏页在 app.js 的 init 收尾、主菜单页在首帧之后），
+           两页都是**先注册订阅者、再发 ready**，所以收到它就意味着"发过去有人接"。 */
+        if (!pageReady)
+        {
+            if (Time.unscaledTime - engineReadyAt < ReadyFallbackSeconds)
+            {
+                return;
+            }
+
+            pageReady = true;
+            Debug.LogWarning(
+                $"[WebUiBridge] 引擎就绪 {ReadyFallbackSeconds:0.#} 秒仍未收到网页 ready，" +
+                "按已就绪处理（网页可能启动时报错了，或者页面忘了发 ready）。");
+        }
+
         // 连上后先把积压的消息按序补发 —— 里面很可能就有剧情开场的第一句
         FlushOutgoing();
 
@@ -263,6 +310,14 @@ public class WebUiBridge : MonoBehaviour
             }
 
             Debug.Log($"[WebUiBridge] C# ← JS：{json}");
+
+            // 网页说「我画好了、订阅者也挂上了，可以发消息给我了」。
+            // 这是 C# 唯一敢往外发东西的时刻 —— 见 PostRaw 的闸门。
+            if (!pageReady && ReadType(json) == "ready")
+            {
+                pageReady = true;
+                Debug.Log("[WebUiBridge] 网页已就绪（ready），开始往外发。");
+            }
 
             var handler = MessageReceived;
             if (handler != null)

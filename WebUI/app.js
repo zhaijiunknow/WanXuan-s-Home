@@ -32,11 +32,11 @@
 
   // 文字速度 / 自动播放间隔的**合理区间**（毫秒）。
   //
-  // 注意：换算成滑杆刻度（0..100）的逻辑**不在这里** —— 滑杆只存在于设置界面
-  // （menu/settings-view.js），本页只消费毫秒这个物理量。
+  // 注意：换算成滑杆刻度（0..100）的逻辑**不在这里** —— 滑杆只存在于
+  // Animus 的设置页（animus/settings-module.js），本页只消费毫秒这个物理量。
   // 这里保留区间只是为了钳制 C# 发来的值：万一存档被手改成 0，
   // 打字机会变成"瞬间出字"，钳一下至少还看得出是设置不对劲而不是游戏坏了。
-  // 这几个数字必须和 menu/settings-view.js 里的同名常量一致。
+  // 这几个数字必须和 animus/settings-module.js 里的同名常量一致。
   var SPEED_SLOW_MS = 120;
   var SPEED_FAST_MS = 8;
   var AUTO_MIN_MS = 200;
@@ -62,6 +62,123 @@
   };
   var BACKDROP_CLASSES = ['backdrop-day', 'backdrop-evening', 'backdrop-night'];
   var BACKGROUND_CLASS = { day: 'backdrop-day', evening: 'backdrop-evening', night: 'backdrop-night' };
+
+  /* ============================================================
+     右下角那行操作提示（`#hint`）
+     ------------------------------------------------------------
+     **它必须跟着当前状态走。** 原来它是一条写死在 index.html 里的
+     「点击 / 空格 继续」，于是选项页和结局页上都在说同一句话 ——
+     而那两个状态下"点击继续"是**做不到**的（advance() 见到选项层 /
+     结局层就直接返回）。屏幕上写一件按不出的事，比不写更糟。
+
+     三种状态三句话，见 setHint()。
+     ============================================================ */
+  var HINT_DIALOGUE = '点击 / 空格 继续';
+
+  /* ============================================================
+     交接那层光（主菜单 → 游戏的无缝切换，后半段）
+     ------------------------------------------------------------
+     `index.html` 里它是 `covered`（第一帧就亮着），所以从主菜单过来时，
+     Unity 换场景 + 这一页的加载过程全被它盖住 —— 那正是硬切会露出来的地方。
+     收掉的时机：
+       - 第一句话显示出来（showDialogue）—— 正好的那一下
+       - 或者 HANDOFF_FALLBACK_MS 兜底：C# 万一没推 dialogue.show
+         （存档坏了 / 桥接断了），玩家不能一直盯着一整块光
+
+     ⚠ 那层光的样子（色值、时长）在 theme.css，和主菜单页共用一份；
+       主菜单那半段在 menu/boot.js 的 leaveToGame()。
+     ============================================================ */
+  var HANDOFF_FALLBACK_MS = 2500;
+  var handoffDropped = false;
+
+  function dropHandoffVeil() {
+    if (handoffDropped || !dom.handoffVeil) {
+      return;
+    }
+
+    handoffDropped = true;
+
+    /* ⚠ 本页**没有被那层光盖住**的时候，不要播"界面落位"。
+       为什么：`game-arrive` 是从 opacity 0 开始的，而对话框那时**已经画出来了** ——
+       对一个已经可见的元素重播入场动画，看起来就是"闪一下"。
+       进游戏的过场现在由 Unity 侧的 ChapterTransition 负责（色块退完才放行剧本），
+       所以本页的 veil 一直是透明的（没有 .covered），这里就不该再动它。
+       浏览器里预览、或者以后没有那层过场时，veil 会带 .covered，那时才播落位动画。 */
+    var wasCovered = dom.handoffVeil.classList.contains('covered');
+    dom.handoffVeil.classList.remove('covered');
+
+    if (!wasCovered) {
+      return;
+    }
+
+    /* 光在收的同时**让界面自己落位**（对话框从下往上落一点、控制条稍后淡入，
+       规则在 style.css 的 `body.handoff-arriving`）。 */
+    document.body.classList.add('handoff-arriving');
+
+    window.setTimeout(function () {
+      document.body.classList.remove('handoff-arriving');
+    }, 1000);
+  }
+
+  /* ============================================================
+     反方向：游戏 → 主菜单（同一层光的另一半）
+     ------------------------------------------------------------
+     和 menu/boot.js 的 leaveToGame() 是同一件事的反方向，理由也一样：
+     换场景要时间 —— 主菜单场景里的 WebView 是全新对象，CEF 要重新启动、
+     主菜单页要重新加载，中间那 1~3 秒屏幕上是空的。
+     **先把光升起来，再发消息**；先发的话玩家看到的是"本页没了、房间还在原地"。
+
+     Unity 侧还有一层同色的光（Assets/Scripts/UI/HandoffVeil.cs）会在换场景那一帧
+     接住，一直亮到主菜单页发来 ready —— 所以这里只要把本页这层升起来，
+     两层光的交接就看不出接缝。
+
+     四个出口都走这里：暂停菜单那颗「回主菜单」、暂停菜单瓦片里的「回主菜单」、
+     控制条上那颗、以及 M 键。
+
+     ⚠ 300ms = 本页那层光升起来的时长（style.css 的 body.leaving-to-menu）。
+        改这里要连着 style.css 一起改。
+        退出游戏（menu.quit）**不走这里**：那是退出进程，不需要过场。
+     ============================================================ */
+  var LEAVING_TO_MENU_MS = 300;
+  var leavingToMenu = false;
+
+  function leaveToMenu() {
+    /* 连按两下不该发两条消息 */
+    if (leavingToMenu) {
+      return;
+    }
+
+    /* 浏览器里预览时没有宿主，发了也没人接 —— 那就别演退场，
+       否则页面会亮成一片然后停在那里（同 leaveToGame）。 */
+    if (!VNBridge.hasHost()) {
+      console.log('[VN] 没有宿主（浏览器预览），ui.menu 不发送、也不演退场。');
+      return;
+    }
+
+    leavingToMenu = true;
+
+    /* 暂停菜单先收掉：要盖住的是**游戏画面**，不是菜单自己。 */
+    if (window.Animus && typeof Animus.close === 'function') {
+      Animus.close();
+    }
+
+    /* **升光，不切黑。**
+       和主菜单页的退场是同一套：先让当前主题的那片光铺满，再发消息 ——
+       C# 就在这片光里换场景（Unity 侧的 MosaicReveal 铺的是同一片光），
+       然后由主菜单场景补上动态（光一块块让开 → 马赛克 → 变清晰 → 出 UI）。
+       规则在 style.css 的 body.leaving-to-menu，时长和下面这个数对齐。 */
+    document.body.classList.add('leaving-to-menu');
+
+    /* 光要真的升起来：`leaving-to-menu` 只管时长（style.css），
+       让它不透明的是 `.covered`（theme.css 里那条）。两个都要。 */
+    if (dom.handoffVeil) {
+      dom.handoffVeil.classList.add('covered');
+    }
+
+    window.setTimeout(function () {
+      send('ui.menu', {});
+    }, LEAVING_TO_MENU_MS);
+  }
 
   /* ---------------- DOM ---------------- */
 
@@ -90,6 +207,15 @@
     hidden: false,
     hud: false,
     theme: 'room',
+
+    /* 右下角提示**当前该是哪一句**（见 HINT_DIALOGUE / setHint）。
+       存下来是为了让 toast 能回到"这一档"的那句，而不是写死回"点击继续"。 */
+    hint: HINT_DIALOGUE,
+    toastTimer: null,
+
+    /* 打开暂停菜单时"是不是菜单把自动播放停掉的"。
+       有这个标记才能做到：玩家自己按 A 关掉的自动，不会因为开关一次菜单被打开。 */
+    autoPausedByMenu: false,
     // 这两项默认关：在 MainRoom 里真实背景是 3D 房间，CSS 假背景与角色站位参考层
     // 都只是评审工具，不该在游戏里默认出现。浏览器里想看得按 B / G 手动打开。
     previewBackdrop: false,
@@ -122,6 +248,7 @@
   function init() {
     cacheDom();
     bindEvents();
+    bindPauseHandlers();
     fitStage();
 
     // 若宿主（Unity）已注入桥接对象，直接进入 bridge 模式。
@@ -140,7 +267,23 @@
     dom.characterSlot.classList.toggle('hidden', !state.showGuides);
     updateHud();
     detectFont();
-    send('ready', { mode: state.mode });
+
+    /* 「画好了」—— Unity 侧那层光（HandoffVeil.cs）等的就是这一条，收到才敢收光。
+       进游戏时 CEF 要在这个场景里重新启动，那 1~3 秒屏幕上什么都没有。
+
+       **要等两个 rAF 再发，不能直接发**：rAF 的回调跑在"这一帧即将被画出来"之前，
+       所以在第一个 rAF 里发，画面其实还没上屏 —— 那边一收光就露出真实场景，
+       紧接着本页画出来，又是一次闪白（实测过就是这个观感）。
+       嵌两层就落到了**第一帧画完之后**，收光那一刻底下已经是这层同色的光了。 */
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        send('ready', { mode: state.mode });
+      });
+    });
+
+    /* 交接那层光的兜底：万一 C# 一直没推 dialogue.show（存档坏了、桥接断了），
+       玩家不能一直盯着一整块光。正常路径在 showDialogue 里就收掉了。 */
+    window.setTimeout(dropHandoffVeil, HANDOFF_FALLBACK_MS);
 
     // 主动问 C# 要当前设置（文字速度 / 自动播放间隔）。
     // 用"页面主动问"而不是"C# 主动推"：主动推必须踩准"网页还没加载完 /
@@ -206,6 +349,7 @@
     dom.controls = document.getElementById('controls');
     dom.hud = document.getElementById('dev-hud');
     dom.restoreMarker = document.getElementById('restore-marker');
+    dom.handoffVeil = document.getElementById('handoff-veil');
   }
 
   /* ============================================================
@@ -372,6 +516,14 @@
       dom.namePlate.classList.add('hidden');
     }
 
+    /* 提示语回到"对话"这一档 —— 上一句可能是选项或结局页留下的。 */
+    setHint(HINT_DIALOGUE);
+
+    /* 第一句话来了 → 把那层交接的光收掉（从主菜单进来的那一下的收尾）。
+       放在这里而不是 init()：要等画面真的有东西可看再收，
+       否则会先露出一个空对话框、再露出文字。 */
+    dropHandoffVeil();
+
     startTyping(step.content || '');
     updateHud();
   }
@@ -456,6 +608,15 @@
     dom.choiceLayer.innerHTML = '';
     dom.choiceLayer.classList.add('show');
 
+    /* 提示语换成"选择"这一档，而且**把实际能按的键写出来** ——
+       按钮右边显示的就是 A/B/C…，两边共用 choiceKeyLabel()，
+       不会出现"提示里说按 A、按钮上写 B"。 */
+    var keys = [];
+    for (var k = 0; k < choices.length; k++) {
+      keys.push(choiceKeyLabel(k));
+    }
+    setHint(keys.length ? '点击选择 · 或按 ' + keys.join(' / ') : '点击选择');
+
     for (var i = 0; i < choices.length; i++) {
       (function (index) {
         var choice = choices[index];
@@ -470,7 +631,7 @@
 
         var key = document.createElement('span');
         key.className = 'choice-key';
-        key.textContent = String.fromCharCode(65 + index);
+        key.textContent = choiceKeyLabel(index);
         button.appendChild(key);
 
         button.addEventListener('click', function (event) {
@@ -490,6 +651,10 @@
     dom.choiceLayer.innerHTML = '';
     dom.dialogueLayer.classList.remove('hidden');
 
+    /* 选项收掉之后提示要回"继续" —— 不然在下一句到达之前（桥接模式下要等 C#
+       回话）右下角还写着"或按 A / B"。 */
+    setHint(HINT_DIALOGUE);
+
     send('choice.selected', { index: index, next: choice.next || '', label: choice.label || '' });
 
     if (state.mode === 'standalone') {
@@ -501,6 +666,7 @@
     dom.choiceLayer.classList.remove('show');
     dom.choiceLayer.innerHTML = '';
     dom.dialogueLayer.classList.remove('hidden');
+    setHint(HINT_DIALOGUE);
   }
 
   /* ============================================================
@@ -516,11 +682,18 @@
     dom.endingTitle.textContent = step.endingTitle || 'End';
     dom.endingMessage.textContent = step.endingMessage || '';
     dom.endingLayer.classList.remove('hidden');
+
+    /* 结局页上的提示**必须换掉** —— 原来这里一直写着"点击 / 空格 继续"，
+       而那时候点击是不推进的（advance() 见到结局层就直接返回），
+       等于屏幕上写着一件做不到的事。 */
+    setHint('按 Esc 先收起这张卡');
+
     updateHud();
   }
 
   function hideEnding() {
     dom.endingLayer.classList.add('hidden');
+    setHint(HINT_DIALOGUE);
   }
 
   function restart() {
@@ -667,11 +840,31 @@
     if (button) { button.classList.toggle('active', !!active); }
   }
 
+  /**
+   * 设右下角那行提示 —— **唯一入口**。
+   *
+   * 为什么要一个函数：它有三个来源（对话 / 选项 / 结局）、还有一个借用它的
+   * toast，写死字符串的话就会出现"这里改对了、那里又冲回去"。
+   * 存进 state.hint 之后，toast 结束能回到**当前这一档**的那句。
+   */
+  function setHint(text) {
+    state.hint = text;
+
+    if (dom.hint) {
+      dom.hint.textContent = text;
+    }
+  }
+
   function showToast(message) {
+    /* toast 借用右下角同一行（那里本来就没别的东西），2.2 秒后退回
+       **当前状态该有的那句** —— 不能写死回"点击 / 空格 继续"：
+       在选项页上那样回，提示就又变成一句按不出来的话了。 */
     dom.hint.textContent = message;
     dom.hint.classList.remove('hidden');
-    window.setTimeout(function () {
-      dom.hint.textContent = '点击 / 空格 继续';
+
+    window.clearTimeout(state.toastTimer);
+    state.toastTimer = window.setTimeout(function () {
+      dom.hint.textContent = state.hint;
     }, 2200);
   }
 
@@ -840,10 +1033,23 @@
         break;
 
       // C# 持有设置（PlayerPrefs）。本页在开机时主动发一条 settings.request 问一次，
-      // 之后就只在玩家改了设置时被动收到——设置界面在**主菜单场景**里，本页没有滑杆。
-      // 这里收到的值只影响打字机节奏（textSpeed）和自动播放间隔（autoDelay）。
+      // 之后玩家在暂停菜单里改了设置也会再收到。
+      // 收到之后**两处**都要更新：
+      //   applySettings     —— 本页内部的只读镜像（打字机节奏、自动播放间隔）
+      //   AnimusSettings    —— 暂停菜单里那些控件的显示值
       case 'settings.apply':
         applySettings(payload.settings || payload);
+        if (window.AnimusSettings) {
+          AnimusSettings.apply(payload.settings || payload);
+        }
+        break;
+
+      // C# 算好的记忆序列（暂停菜单的主视图）。网页不自己算 ——
+      // bridge 模式下本页根本没有剧本，只有 C# 知道走到哪了。
+      case 'story.progress':
+        if (window.AnimusMemory) {
+          AnimusMemory.setProgress(payload);
+        }
         break;
 
       default:
@@ -901,8 +1107,190 @@
 
 
   /* ============================================================
+     暂停菜单（Animus 归档系统）
+     ------------------------------------------------------------
+     界面在 animus/ 下，是**主菜单页和游戏页共用的一套**。
+     本页只负责三件事：
+       1. Esc 掀开它、Esc / 「继续游戏」收掉它
+       2. 把瓦片上的动作翻译成桥接消息（本页不认识场景切换）
+       3. 把当前进度报给顶栏（那是 C# 算的，本页只是转述）
+
+     ## 动作也是瓦片，不是底栏按钮
+
+     参考图里的桌面把「继续」「放弃记忆」「离开」和「归档」「物品」「数据库」
+     混在**同一摞瓦片**里。所以这里也照做：注册三个 `run` 型的模块，
+     它们的 order 让它们排在最上和最下，中间的才是文件夹。
+
+     它们不是"界面"，只是三格瓦片 —— 这一点和别处的分工一致：
+     界面归 animus/，流程归本文件。
+     ============================================================ */
+
+  function registerPauseTiles() {
+    Animus.register({
+      id: 'resume', no: '00', label: '继续游戏', order: -10,
+      code: 'CMD · RESUME',
+      desc: '关闭归档系统，回到刚才那一段记忆。',
+      run: function () { Animus.close(); }
+    });
+
+    /* 「设置」是一格瓦片，三页在它里面 —— 和主菜单那边一致。
+       摊在桌面上会让暂停菜单变成一条杂项列表，也不符合参考图的层级。 */
+    Animus.register({
+      id: 'settings', no: '50', label: '设置', order: 50,
+      code: 'REC · 50 / OPTIONS',
+      desc: '音频、文字与显示输出。游戏进行中没有网页立绘，所以这里是三页。',
+      children: ['sound', 'text', 'display'],
+      preview: function () {
+        var s = AnimusSettings.get();
+        return [
+          ['主音量', Math.round(s.volume * 100) + '%'],
+          ['文字', (s.textSpeed > 0 ? Math.round(1000 / s.textSpeed) : 0) + ' 字/秒']
+        ];
+      }
+    });
+
+    Animus.register({
+      id: 'to-menu', no: '90', label: '回主菜单', order: 900,
+      code: 'CMD · MAIN MENU',
+      desc: '中止这一段记忆，回到标题。没有存档就不会自动续上 —— 现在还没有自动存档。',
+      run: function () { leaveToMenu(); }
+    });
+
+    Animus.register({
+      id: 'quit', no: '91', label: '退出游戏', order: 910,
+      code: 'CMD · QUIT',
+      desc: '直接退出。设置会保存，剧情进度不会。',
+      run: function () { send('menu.quit', {}); }
+    });
+  }
+
+  /* 三个动作瓦片只注册一次。放在脚本加载时就注册（不是等第一次开菜单），
+     因为它们和设置那几页一样是"这个页面上有哪些瓦片"的一部分 ——
+     后注册的话第一次打开会少几格。 */
+  registerPauseTiles();
+
+  /** 打开暂停菜单。已经开着就什么都不做（Esc 连按不会叠起来）。 */
+  function openPause() {
+    if (Animus.isOpen()) {
+      return;
+    }
+
+    /* 进去之前先把自动播放停掉。
+       不收的话：菜单盖在上面，底下的剧情还在自己往前走。 */
+    state.autoPausedByMenu = state.auto;
+    if (state.auto) {
+      toggleAuto();
+    }
+
+    Animus.open({
+      kicker: '记 忆 归 档',
+      title: '暂停',
+      /* 顺序由各模块的 order 决定：
+           01 继续游戏 → 02 记忆序列 → 03~05 设置 → 90 回主菜单 → 91 退出
+         动作在最上、最下，文件夹在中间 —— 和参考图里那摞瓦片的排法一致。
+
+         **顶栏读数（同步率 / 章节 / 进度）不在这里给。**
+         它归记忆模块（见 memory-module.js 的 pushReadout）——
+         那个模块是唯一知道"读到哪一章"的地方，主菜单和游戏页都用它那一份，
+         免得两处各算一套、数字对不上。open 之后要立刻 warmUp 一次，
+         否则会先闪一下空读数。 */
+      modules: ['resume', 'memory', 'settings', 'to-menu', 'quit'],
+      escLabel: '继续',
+      actions: []
+    });
+
+    if (window.AnimusMemory && typeof AnimusMemory.warmUp === 'function') {
+      AnimusMemory.warmUp();
+    }
+
+    /* 「跟随进度」那一套主题的依据是"现在读到哪一步了" —— 玩家多半是
+       刚读完一段剧情才按的 Esc，所以这里必须按最新的进度重算一次。
+       光靠设置模块那个一分钟一次的轮询，最坏要等一分钟屋子才换光。 */
+    if (window.AnimusSettings && typeof AnimusSettings.refreshTheme === 'function') {
+      AnimusSettings.refreshTheme();
+    }
+  }
+
+  function bindPauseHandlers() {
+    Animus.handlers.action = function (id) {
+      if (id === 'resume') {
+        Animus.close();
+      } else if (id === 'menu') {
+        /* 回主菜单场景。和左下角那个「主菜单」按钮同一件事 ——
+           本页只发意图，换场景是 C# 的 WebSceneFlow 干的。
+           走 leaveToMenu()：它负责"先升光、再发消息"，否则那一下是硬切。 */
+        leaveToMenu();
+      } else if (id === 'quit') {
+        send('menu.quit', {});
+      }
+    };
+
+    /* 关掉之后恢复自动播放。
+       只在"是菜单把它停掉的"情况下恢复 —— 玩家自己按 A 关掉的自动
+       不该因为开关一次菜单就被打开。 */
+    Animus.handlers.closed = function () {
+      if (state.autoPausedByMenu && !state.auto) {
+        toggleAuto();
+      }
+      state.autoPausedByMenu = false;
+    };
+
+    /* 设置改了：本地立刻生效（手感要马上有反馈），再通知 C# 落盘。
+       C# 会回一条 settings.apply 做最终确认，那时界面上显示的就是真值。 */
+    AnimusSettings.handlers.changed = function (settings) {
+      applySettings(settings);
+      send('settings.changed', settings);
+    };
+
+    /* 切到记忆序列那一页时**重新问一次进度**。
+       玩家可能是读了档之后才打开的暂停菜单，之前问的那次已经过期。
+       （顶栏读数不在这里刷 —— 它归记忆模块，C# 一回话它自己就更新了，
+       见 memory-module.js 的 pushReadout。） */
+    Animus.handlers.page = function (id) {
+      if (id === 'memory' || id === 'chapters') {
+        send('story.progress.request', {});
+      }
+    };
+  }
+
+  /* ============================================================
      事件绑定
      ============================================================ */
+
+  /**
+   * 第 index 个选项的键位提示（A / B / C…）。
+   *
+   * **提示语和按钮右边那个小字共用它** —— 一个公式写两遍，
+   * 迟早出现"提示里让你按 A、按钮上写的是别的"。
+   */
+  function choiceKeyLabel(index) {
+    return String.fromCharCode(65 + index);
+  }
+
+  /**
+   * 把按键换成选项序号，认不出来返回 -1。
+   *
+   * **字母是主路径**：按钮右边那个小字（`.choice-key`）显示的就是 A/B/C…，
+   * 提示语里说的也是它 —— 屏幕上写着 A、按 A 却没反应，是这一版之前的实际状况
+   * （那时只认 1-9）。数字留着当兼容，两套都认。
+   */
+  function choiceIndexFromKey(key) {
+    if (!key) {
+      return -1;
+    }
+
+    if (key >= '1' && key <= '9') {
+      return parseInt(key, 10) - 1;
+    }
+
+    var upper = key.toUpperCase();
+
+    if (upper >= 'A' && upper <= 'Z') {
+      return upper.charCodeAt(0) - 65;
+    }
+
+    return -1;
+  }
 
   function bindEvents() {
     window.addEventListener('resize', fitStage);
@@ -945,22 +1333,36 @@
         case 'menu':
           // 回主菜单场景。**不是本页切界面** —— 主菜单是另一个场景
           // （MainMenu），由 C# 的 WebSceneFlow 负责换场景。
-          // 本页只发一个意图，不做任何界面切换。
-          send('ui.menu', {});
+          // 本页只发一个意图，不做任何界面切换；过场交给 leaveToMenu()。
+          leaveToMenu();
           break;
       }
     });
 
     document.addEventListener('keydown', function (event) {
-      // 1-9 选选项
-      if (event.key >= '1' && event.key <= '9') {
-        var buttons = dom.choiceLayer.querySelectorAll('.choice-button');
-        var index = parseInt(event.key, 10) - 1;
-        if (index < buttons.length) {
-          buttons[index].click();
-          event.preventDefault();
-        }
+      /* 暂停菜单开着的时候，本页**一律不处理键盘**。
+         它盖在最上面，此时空格/回车/1-9 该由菜单自己消化 ——
+         不拦的话在菜单里按空格会顺手把底下的剧情翻一页。
+         （Animus 自己的监听在另一条链上，不受这里影响。） */
+      if (window.Animus && Animus.isOpen()) {
         return;
+      }
+
+      /* 选项键位：字母（屏幕上写的就是 A/B/C…）和数字都认 —— 见
+         choiceIndexFromKey。**只在选项层开着的时候拦**：
+         不然平时按 F / B / G 这些开发开关会被它吃掉。 */
+      if (dom.choiceLayer.classList.contains('show')) {
+        var pick = choiceIndexFromKey(event.key);
+
+        if (pick >= 0) {
+          var buttons = dom.choiceLayer.querySelectorAll('.choice-button');
+
+          if (pick < buttons.length) {
+            buttons[pick].click();
+            event.preventDefault();
+            return;
+          }
+        }
       }
 
       switch (event.key) {
@@ -970,7 +1372,20 @@
           if (state.hidden) { toggleHidden(); } else { advance(); }
           break;
         case 'Escape':
-          if (!dom.endingLayer.classList.contains('hidden')) { hideEnding(); }
+          /* Esc 有三层，从下往上：先关结局页，再开/关暂停菜单。
+             收掉的动作由 Animus 自己处理（它会回调 handlers.closed）。
+
+             **必须 preventDefault**：Animus 自己也监听 Esc，而它的监听是在
+             本文件之后注册的，所以同一个 Esc 会先到这里、再到它那里。
+             不标记"已处理"的话，这里刚把菜单打开，它那边立刻又关掉。 */
+          if (!dom.endingLayer.classList.contains('hidden')) {
+            hideEnding();
+          } else if (Animus.isOpen()) {
+            Animus.close();
+          } else {
+            openPause();
+          }
+          event.preventDefault();
           break;
         case 'h': case 'H': toggleHidden(); break;
         case 't': case 'T': toggleTheme(); break;
@@ -985,7 +1400,7 @@
           // 本页**没有**菜单界面，所以这里不会"切出菜单来"，而是请求换场景。
           // 浏览器里预览时没人接这条消息，只会看到一条控制台日志 —— 这是对的，
           // 主菜单是独立页面，在浏览器里直接打开 menu/index.html 看即可。
-          send('ui.menu', {});
+          leaveToMenu();
           break;
       }
     });

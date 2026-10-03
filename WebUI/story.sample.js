@@ -20,7 +20,7 @@
 window.VN_SAMPLE_STORY = {
   version: 1,
   storyId: "sample_excerpt",
-  storyTitle: "坠落凡间的头号食客",
+  storyTitle: "甜味的坠落",
   isSample: true,
 
   steps: [

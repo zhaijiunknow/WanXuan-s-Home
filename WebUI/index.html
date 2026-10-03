@@ -8,9 +8,14 @@
 <!-- 主题变量 + 页面基础 + #stage 布局原语（与主菜单界面共用） -->
 <link rel="stylesheet" href="theme.css">
 
-<!-- 游戏界面自己的样式。里面**没有**主菜单和设置的规则 ——
-     那两块是另一个场景（MainMenu）的界面，在 menu/ 下。 -->
+<!-- 游戏界面自己的样式。里面**没有**主菜单的规则 ——
+     那是另一个场景（MainMenu）的界面，在 menu/ 下。
+     暂停菜单也不在这里：它是 animus/ 那套共用系统。 -->
 <link rel="stylesheet" href="style.css">
+
+<!-- Animus 归档系统（暂停菜单）。和主菜单页共用同一套，
+     所以它的样式与脚本都在 animus/ 下，不在本目录。 -->
+<link rel="stylesheet" href="animus/animus.css">
 </head>
 <body>
 
@@ -53,15 +58,17 @@
     </div>
   </div>
 
-  <!-- 6b. 主菜单 / 设置**不在这里**。
-       它们属于另一个场景（MainMenu），是独立的一套界面：
+  <!-- 6b. 主菜单**不在这里**。
+       它属于另一个场景（MainMenu），是独立的一套界面：
          WebUI/menu/index.html   页面
-         WebUI/menu/menu.css     主菜单样式
-         WebUI/menu/settings.css 设置样式
-         WebUI/menu/*.js         各自的脚本
+         WebUI/menu/*.css|js     它自己的样式与脚本
        放在同一个页面里曾经是个错误 —— 游戏进行中根本不会出现主菜单，
        两者永远不同屏，混在一起只会让"改 A 弄坏 B"变得容易。
-       本文件现在只装游戏进行中的界面。 -->
+       本文件只装游戏进行中的界面。
+
+       但**暂停菜单在**：它由 animus/ 那套生成、直接挂在 document.body 上
+       （见文件末尾的脚本）。它在主菜单页里也要出现 —— 那是同一个系统，
+       复制两份必然出现"主菜单里能关立绘、暂停菜单里关不掉"这类不一致。 -->
 
   <!-- 7. 操作提示 -->
   <div id="hint">点击 / 空格 继续</div>
@@ -92,9 +99,29 @@
 
 </div>
 
+<!-- 11. 交接用的那层光（主菜单 → 游戏的无缝切换）。
+     **HTML 里就带 covered**：页面第一帧就是亮的，这样从主菜单过来时，
+     Unity 换场景那一瞬、以及这一页自己的加载过程，全被它盖住，
+     等第一句话显示出来再收掉（见 app.js 的 dropHandoffVeil）。
+     样式在 theme.css —— 那边和主菜单页共用一份。 -->
+<!-- 交接那层光。**本页不再带 covered**：进游戏的揭示现在由 Unity 侧的
+     MosaicReveal 负责（全黑 → 一块一块揭开 → 马赛克 → 变清晰 → 出 UI），
+     它盖在这层之上，所以这里保持透明 —— 页面画好就是画好了，
+     等马赛克退场时 UI 自然露出来。元素留着是因为 app.js 里
+     dropHandoffVeil() 还在管 `.covered` 与 `handoff-arriving`（界面落位那套动画）。 -->
+<div id="handoff-veil" aria-hidden="true"></div>
+
 <!-- 共用原语：与 C# 的协议层 + 画布缩放。它们是基础设施，不是界面。 -->
 <script src="bridge.js"></script>
 <script src="stage.js"></script>
+
+<!-- Animus 归档系统 = 暂停菜单。三个文件有**先后要求**：
+     animus.js 定义外壳 → 两个 module 在加载时就调 Animus.register()，
+     所以外壳必须排在前面。
+     它是主菜单页和游戏页共用的，所以放在这里而不是本页目录下。 -->
+<script src="animus/animus.js"></script>
+<script src="animus/settings-module.js"></script>
+<script src="animus/memory-module.js"></script>
 
 <!-- 样本剧本：真实剧本《第一幕》的精简摘录，用于排版评审。
      完整数据用 Unity 菜单 WanXuan/导出 Web 剧本（story.js） 生成 WebUI/story.js，
